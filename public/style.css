@@ -35,7 +35,35 @@
   --song-font-scale: 1;
 }
 
+/* Ljust läge - för replokal/soffa/dator i dagsljus, inte scenkoncept men lika läsbart */
+:root[data-theme="light"] {
+  --bg: #eee6d3;
+  --surface: #f7f1e2;
+  --surface-2: #efe6d0;
+  --border: #d8c9a6;
+  --border-soft: #e2d5b6;
+
+  --amber: #b5701c;
+  --amber-dim: #8f5813;
+  --amber-tint: rgba(181, 112, 28, 0.12);
+
+  --teal: #2f6b64;
+  --teal-tint: rgba(47, 107, 100, 0.12);
+
+  --danger: #a63f2b;
+  --danger-tint: rgba(166, 63, 43, 0.1);
+
+  --text: #241f16;
+  --text-dim: #5c5238;
+  --text-faint: #8a7d5f;
+}
+:root[data-theme="light"] .btn-accent { color: #fff8ec; }
+
 * { box-sizing: border-box; }
+
+/* [hidden] ska alltid vinna över andra display-regler (t.ex. display:flex på .modal
+   eller .control-group) - annars kan JS sätta .hidden=true utan att elementet döljs. */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -230,6 +258,29 @@ input[type="search"] { flex: 1; }
 }
 .field-wide { grid-column: 1 / -1; }
 
+.version-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.version-chip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.version-chip.active {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #211804;
+  font-weight: 600;
+}
+
 .body-editor { margin-top: 14px; }
 .body-editor-head {
   display: flex;
@@ -238,6 +289,11 @@ input[type="search"] { flex: 1; }
   font-size: 12px;
   color: var(--text-dim);
   margin-bottom: 6px;
+}
+.markup-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 .body-textarea {
   width: 100%;
@@ -319,6 +375,7 @@ input[type="search"] { flex: 1; }
   margin: 0 auto;
   width: 100%;
   font-size: calc(15px * var(--song-font-scale));
+  overflow-x: auto;
 }
 
 .section { margin-bottom: 22px; padding-left: 12px; border-left: 3px solid var(--border); }
@@ -338,7 +395,7 @@ input[type="search"] { flex: 1; }
 .section-chorus .section-label { color: var(--amber); }
 .section-bridge .section-label { color: var(--danger); }
 
-.line { margin-bottom: 2px; }
+.line { margin-bottom: 2px; width: max-content; min-width: 100%; }
 .chord-row {
   font-family: var(--font-mono);
   color: var(--amber);
@@ -346,7 +403,12 @@ input[type="search"] { flex: 1; }
   white-space: pre;
   line-height: 1.3;
 }
-.lyric-row, .lyric-only {
+.lyric-row {
+  font-family: var(--font-mono);
+  white-space: pre;
+  line-height: 1.5;
+}
+.lyric-only {
   font-family: var(--font-mono);
   white-space: pre-wrap;
   line-height: 1.5;
@@ -358,6 +420,68 @@ input[type="search"] { flex: 1; }
   font-size: 0.85em;
   margin: 3px 0;
 }
+
+/* ---------------- Öva utantill (inlärningsläge) ---------------- */
+
+.view.practice.active { display: flex; flex-direction: column; padding: 0; max-width: none; }
+
+.practice-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 16px 8px;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.practice-divider {
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 16px 0 8px;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 4px;
+}
+
+.practice-line {
+  border-left: 3px solid var(--border);
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  line-height: 1.6;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.practice-line.correct { border-left-color: var(--teal); background: var(--teal-tint); }
+.practice-line.partial { border-left-color: var(--amber); background: var(--amber-tint); }
+.practice-line.revealed { border-left-color: var(--text-faint); }
+
+.diff-match { color: var(--text); }
+.diff-missing { color: var(--amber); text-decoration: underline dotted; }
+.diff-extra { color: var(--danger); text-decoration: line-through; opacity: 0.8; }
+
+.practice-input-area {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: 12px 14px;
+  flex-shrink: 0;
+}
+.practice-input-area textarea {
+  font-family: var(--font-mono);
+  min-height: 54px;
+  resize: none;
+}
+.practice-btn-row { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+
+.practice-summary {
+  padding: 30px 20px;
+  max-width: 480px;
+  margin: 0 auto;
+  text-align: center;
+}
+.practice-summary h3 { font-family: var(--font-display); margin-bottom: 4px; }
 
 /* ---------------- Toast / modal ---------------- */
 

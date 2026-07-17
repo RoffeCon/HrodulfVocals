@@ -33,8 +33,8 @@ wss.on('connection', (ws) => {
 
 app.get('/api/songs', (req, res) => {
   const list = songs.all()
-    .map(({ id, title, composer, key, tempo, capo, tags, updatedAt }) =>
-      ({ id, title, composer, key, tempo, capo, tags, updatedAt }))
+    .map(({ id, title, composer, key, tempo, capo, tags, updatedAt, groupId, versionLabel }) =>
+      ({ id, title, composer, key, tempo, capo, tags, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
     .sort((a, b) => a.title.localeCompare(b.title, 'sv'));
   res.json(list);
 });
@@ -42,7 +42,7 @@ app.get('/api/songs', (req, res) => {
 app.get('/api/songs/:id', (req, res) => {
   const song = songs.get(req.params.id);
   if (!song) return res.status(404).json({ error: 'Låten hittades inte' });
-  res.json(song);
+  res.json({ ...song, groupId: song.groupId || song.id, versionLabel: song.versionLabel || 'V1' });
 });
 
 app.post('/api/songs', async (req, res) => {
@@ -51,8 +51,9 @@ app.post('/api/songs', async (req, res) => {
   if (!body.title || !body.title.trim()) {
     return res.status(400).json({ error: 'Titel krävs' });
   }
+  const id = makeId();
   const song = {
-    id: makeId(),
+    id,
     title: body.title.trim(),
     composer: body.composer || '',
     key: body.key || '',
@@ -62,6 +63,8 @@ app.post('/api/songs', async (req, res) => {
     tags: Array.isArray(body.tags) ? body.tags : [],
     notes: body.notes || '',
     text: body.text || '',
+    groupId: body.groupId || id,
+    versionLabel: body.versionLabel || 'V1',
     createdAt: now,
     updatedAt: now,
   };
@@ -87,11 +90,41 @@ app.put('/api/songs/:id', async (req, res) => {
     ...('tags' in body ? { tags: Array.isArray(body.tags) ? body.tags : [] } : {}),
     ...('notes' in body ? { notes: body.notes } : {}),
     ...('text' in body ? { text: body.text } : {}),
+    ...('versionLabel' in body ? { versionLabel: body.versionLabel || 'V1' } : {}),
     updatedAt: new Date().toISOString(),
   };
   const updated = await songs.update(req.params.id, patch);
   broadcast({ type: 'songs-changed', reason: 'updated', id: updated.id });
   res.json(updated);
+});
+
+// Skapar en ny version av en befintlig låt: samma groupId, kopierad text/metadata som startpunkt.
+app.post('/api/songs/:id/version', async (req, res) => {
+  const src = songs.get(req.params.id);
+  if (!src) return res.status(404).json({ error: 'Låten hittades inte' });
+  const groupId = src.groupId || src.id;
+  if (!src.groupId) await songs.update(src.id, { groupId });
+  const siblingCount = songs.all().filter(s => (s.groupId || s.id) === groupId).length;
+  const now = new Date().toISOString();
+  const copy = {
+    id: makeId(),
+    title: src.title,
+    composer: src.composer,
+    key: src.key,
+    capo: src.capo,
+    tempo: src.tempo,
+    timeSignature: src.timeSignature,
+    tags: src.tags,
+    notes: src.notes,
+    text: src.text,
+    groupId,
+    versionLabel: (req.body && req.body.versionLabel) || `V${siblingCount + 1}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await songs.insert(copy);
+  broadcast({ type: 'songs-changed', reason: 'created', id: copy.id });
+  res.status(201).json(copy);
 });
 
 app.delete('/api/songs/:id', async (req, res) => {

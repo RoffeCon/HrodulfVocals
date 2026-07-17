@@ -9,6 +9,12 @@
 <link rel="icon" href="icons/icon-192.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.svg">
 <link rel="stylesheet" href="style.css">
+<script>
+  try {
+    var t = localStorage.getItem('songbook-theme');
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  } catch (_) {}
+</script>
 </head>
 <body>
 
@@ -25,6 +31,7 @@
       <button class="tab active" data-view="library">Bibliotek</button>
       <button class="tab" data-view="setlists">Setlistor</button>
     </nav>
+    <button class="btn btn-ghost btn-icon" id="themeToggle" title="Växla ljust/mörkt läge">◐</button>
   </header>
 
   <!-- BIBLIOTEK -->
@@ -52,10 +59,13 @@
     <div class="editor-header">
       <button class="btn btn-ghost" id="editorBack">← Tillbaka</button>
       <div class="editor-actions">
+        <button class="btn btn-tiny" id="newVersionBtn" hidden>+ Ny version</button>
+        <button class="btn btn-tiny" id="exportBtn">Exportera</button>
         <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
         <button class="btn btn-accent" id="saveSongBtn">Spara</button>
       </div>
     </div>
+    <div id="editorVersionChips" class="version-chips"></div>
     <div class="editor-grid">
       <div class="field-grid">
         <label>Titel<input id="f-title" type="text" placeholder="Titel"></label>
@@ -64,6 +74,7 @@
         <label>Kapo<input id="f-capo" type="text" placeholder="t.ex. 2"></label>
         <label>Tempo (BPM)<input id="f-tempo" type="text" placeholder="t.ex. 96"></label>
         <label>Taktart<input id="f-time" type="text" placeholder="t.ex. 4/4"></label>
+        <label>Version<input id="f-version" type="text" placeholder="t.ex. V1, Akustisk, Live"></label>
         <label class="field-wide">Taggar (komma-separerat)<input id="f-tags" type="text" placeholder="rock, egen, soundcheck"></label>
       </div>
       <label class="field-wide">Anteckningar<textarea id="f-notes" rows="2" placeholder="Scenanvisningar, historik, vad du vill"></textarea></label>
@@ -72,6 +83,11 @@
         <div class="body-editor-head">
           <span>Text &amp; ackord</span>
           <button class="btn btn-tiny" id="helpBtn" type="button">Hur skriver jag?</button>
+        </div>
+        <div class="markup-toolbar">
+          <button class="btn btn-tiny" type="button" data-insert="section">+ Rubrik</button>
+          <button class="btn btn-tiny" type="button" data-insert="chord">+ Ackord</button>
+          <button class="btn btn-tiny" type="button" data-insert="comment">+ Anteckning</button>
         </div>
         <textarea id="f-text" class="body-textarea" spellcheck="false" placeholder="## Vers 1
 Det var en [C]gång i [G]tiden
@@ -89,7 +105,9 @@ Det var en [C]gång i [G]tiden
       <div class="viewer-title-block">
         <div id="viewerTitle" class="viewer-title"></div>
         <div id="viewerMeta" class="viewer-meta"></div>
+        <div id="viewerVersionChips" class="version-chips" style="justify-content:center; margin-top:4px;"></div>
       </div>
+      <button class="btn btn-ghost" id="practiceFromViewer">Öva utantill</button>
       <button class="btn btn-ghost" id="editFromViewer">Redigera</button>
     </div>
 
@@ -122,6 +140,38 @@ Det var en [C]gång i [G]tiden
     </div>
 
     <div id="songBody" class="song-body"></div>
+  </section>
+
+  <!-- ÖVA UTANTILL -->
+  <section id="view-practice" class="view practice">
+    <div class="viewer-topbar">
+      <button class="btn btn-ghost" id="practiceBack">← Avsluta</button>
+      <div class="viewer-title-block">
+        <div id="practiceTitle" class="viewer-title"></div>
+        <div id="practiceProgress" class="viewer-meta"></div>
+      </div>
+      <button class="btn btn-ghost" id="restartPractice">Börja om</button>
+    </div>
+
+    <div id="practiceLog" class="practice-log"></div>
+
+    <div id="practiceInputArea" class="practice-input-area">
+      <textarea id="practiceInput" rows="2" placeholder="Skriv raden du minns, eller påbörja den…"></textarea>
+      <div class="practice-btn-row">
+        <button class="btn btn-ghost" id="revealLineBtn">Visa rad</button>
+        <button class="btn btn-accent" id="checkLineBtn">Rätta</button>
+        <button class="btn btn-accent" id="nextLineBtn" hidden>Nästa rad ›</button>
+      </div>
+    </div>
+
+    <div id="practiceSummary" class="practice-summary" hidden>
+      <h3>Bra jobbat!</h3>
+      <p id="practiceScoreText"></p>
+      <div class="practice-btn-row" style="justify-content:center">
+        <button class="btn btn-ghost" id="practiceSummaryBack">Tillbaka</button>
+        <button class="btn btn-accent" id="practiceAgainBtn">Öva igen</button>
+      </div>
+    </div>
   </section>
 
   <!-- SETLIST-EDITOR -->
@@ -169,6 +219,21 @@ Det var en [C]gång i [G]tiden
       <li>Refränger och verser färgmarkeras automatiskt utifrån ordet i rubriken (vers/refräng/stick).</li>
     </ul>
     <button class="btn btn-accent" id="closeHelp">Stäng</button>
+  </div>
+</div>
+
+<div id="exportModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>Exportera</h3>
+    <p style="font-size:13.5px;color:var(--text-dim);margin-top:-8px;">Väljer du "Suno-format" görs avsnittsrubriker om till engelska hakparenteser (t.ex. <code>[Chorus]</code>) och ackord tas bort, precis som Suno vill ha det.</p>
+    <div class="practice-btn-row" style="justify-content:flex-start; flex-wrap:wrap;">
+      <button class="btn btn-accent" id="exportPlainBtn">Text med ackord (.txt)</button>
+      <button class="btn btn-accent" id="exportLyricsOnlyBtn">Bara text, inga ackord (.txt)</button>
+      <button class="btn btn-accent" id="exportSunoBtn">Suno-format (.txt)</button>
+    </div>
+    <div class="practice-btn-row">
+      <button class="btn btn-ghost" id="closeExport">Stäng</button>
+    </div>
   </div>
 </div>
 

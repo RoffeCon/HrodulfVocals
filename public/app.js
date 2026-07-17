@@ -150,6 +150,23 @@
     return { title: '', composer: '', key: '', capo: '', tempo: '', timeSignature: '', tags: [], notes: '', text: '' };
   }
 
+  function siblingsOf(song) {
+    const gid = song.groupId || song.id;
+    return state.songs.filter(s => (s.groupId || s.id) === gid)
+      .sort((a, b) => (a.versionLabel || '').localeCompare(b.versionLabel || '', 'sv', { numeric: true }));
+  }
+
+  function renderVersionChips(containerId, song, activeId, onPick) {
+    const el = document.getElementById(containerId);
+    const sibs = siblingsOf(song);
+    if (sibs.length <= 1) { el.innerHTML = ''; return; }
+    el.innerHTML = sibs.map(s => `<span class="version-chip ${s.id === activeId ? 'active' : ''}" data-id="${s.id}">${escapeHtml(s.versionLabel || 'V?')}</span>`).join('');
+    el.onclick = (e) => {
+      const chip = e.target.closest('.version-chip');
+      if (chip && chip.dataset.id !== activeId) onPick(chip.dataset.id);
+    };
+  }
+
   async function openEditor(id, returnView) {
     state.currentSongId = id;
     state.editorReturnView = returnView;
@@ -163,13 +180,27 @@
     document.getElementById('f-capo').value = song.capo || '';
     document.getElementById('f-tempo').value = song.tempo || '';
     document.getElementById('f-time').value = song.timeSignature || '';
+    document.getElementById('f-version').value = song.versionLabel || '';
     document.getElementById('f-tags').value = (song.tags || []).join(', ');
     document.getElementById('f-notes').value = song.notes || '';
     document.getElementById('f-text').value = song.text || '';
     document.getElementById('deleteSongBtn').hidden = !id;
+    document.getElementById('newVersionBtn').hidden = !id;
+    if (id) renderVersionChips('editorVersionChips', song, id, (pickedId) => openEditor(pickedId, returnView));
+    else document.getElementById('editorVersionChips').innerHTML = '';
     showView('editor');
     document.getElementById('f-title').focus();
   }
+
+  document.getElementById('newVersionBtn').addEventListener('click', async () => {
+    if (!state.currentSongId) return;
+    try {
+      const created = await api(`/api/songs/${state.currentSongId}/version`, { method: 'POST', body: JSON.stringify({}) });
+      toast('Ny version skapad: ' + created.versionLabel);
+      await loadSongs();
+      openEditor(created.id, state.editorReturnView);
+    } catch (e) { toast(e.message, true); }
+  });
 
   document.getElementById('editorBack').addEventListener('click', () => showView(state.editorReturnView));
 
@@ -183,6 +214,7 @@
       capo: document.getElementById('f-capo').value.trim(),
       tempo: document.getElementById('f-tempo').value.trim(),
       timeSignature: document.getElementById('f-time').value.trim(),
+      versionLabel: document.getElementById('f-version').value.trim() || 'V1',
       tags: document.getElementById('f-tags').value.split(',').map(t => t.trim()).filter(Boolean),
       notes: document.getElementById('f-notes').value,
       text: document.getElementById('f-text').value,
@@ -215,6 +247,130 @@
 
   document.getElementById('helpBtn').addEventListener('click', () => { document.getElementById('helpModal').hidden = false; });
   document.getElementById('closeHelp').addEventListener('click', () => { document.getElementById('helpModal').hidden = true; });
+
+  function insertMarkup(kind) {
+    const ta = document.getElementById('f-text');
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const value = ta.value;
+    const selected = value.slice(start, end);
+    const atLineStart = start === 0 || value[start - 1] === '\n';
+    let before = '', placeholder = selected, after = '';
+
+    if (kind === 'section') {
+      before = (atLineStart ? '' : '\n') + '## ';
+      placeholder = selected || 'Rubrik';
+      after = '\n';
+    } else if (kind === 'chord') {
+      before = '[';
+      placeholder = selected || 'C';
+      after = ']';
+    } else if (kind === 'comment') {
+      before = (atLineStart ? '' : '\n') + '> ';
+      placeholder = selected || 'anteckning';
+      after = '';
+    }
+
+    const insertText = before + placeholder + after;
+    ta.value = value.slice(0, start) + insertText + value.slice(end);
+    const selStart = start + before.length;
+    const selEnd = selStart + placeholder.length;
+    ta.focus();
+    ta.setSelectionRange(selStart, selEnd);
+  }
+
+  document.querySelectorAll('[data-insert]').forEach(btn => {
+    btn.addEventListener('click', () => insertMarkup(btn.dataset.insert));
+  });
+
+  // ---------- Export ----------
+
+  function reconstructInlineLine(line) {
+    let out = '';
+    let last = 0;
+    const sorted = line.chords.slice().sort((a, b) => a.pos - b.pos);
+    for (const c of sorted) {
+      out += line.lyric.slice(last, c.pos) + `[${c.chord}]`;
+      last = c.pos;
+    }
+    out += line.lyric.slice(last);
+    return out;
+  }
+
+  const SUNO_TAG = { verse: 'Verse', chorus: 'Chorus', bridge: 'Bridge', intro: 'Intro', outro: 'Outro' };
+
+  function buildExportText(song, mode) {
+    const sections = window.Songbook.parseSections(song.text);
+    const out = [song.title];
+    if (mode !== 'suno') {
+      const meta = [];
+      if (song.composer) meta.push('Kompositör: ' + song.composer);
+      if (song.key) meta.push('Tonart: ' + song.key);
+      if (song.capo) meta.push('Kapo: ' + song.capo);
+      if (song.tempo) meta.push(song.tempo + ' bpm');
+      if (song.timeSignature) meta.push(song.timeSignature);
+      if (meta.length) out.push(meta.join(' · '));
+    }
+    out.push('');
+    for (const sec of sections) {
+      if (sec.label) {
+        out.push(mode === 'suno' ? `[${SUNO_TAG[sec.type] || sec.label}]` : sec.label.toUpperCase());
+      }
+      for (const line of sec.lines) {
+        if (line.kind === 'blank') out.push('');
+        else if (line.kind === 'comment') { if (mode !== 'suno') out.push('(' + line.text + ')'); }
+        else out.push(mode === 'withChords' ? reconstructInlineLine(line) : line.lyric);
+      }
+      out.push('');
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function slugFilename(title, suffix) {
+    const base = title.normalize('NFKD').replace(/[^\w\- åäöÅÄÖ]/g, '').trim().replace(/\s+/g, '-') || 'latt';
+    return `${base}${suffix}.txt`;
+  }
+
+  function currentEditorSongSnapshot() {
+    return {
+      title: document.getElementById('f-title').value.trim() || 'Namnlös låt',
+      composer: document.getElementById('f-composer').value.trim(),
+      key: document.getElementById('f-key').value.trim(),
+      capo: document.getElementById('f-capo').value.trim(),
+      tempo: document.getElementById('f-tempo').value.trim(),
+      timeSignature: document.getElementById('f-time').value.trim(),
+      text: document.getElementById('f-text').value,
+    };
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', () => { document.getElementById('exportModal').hidden = false; });
+  document.getElementById('closeExport').addEventListener('click', () => { document.getElementById('exportModal').hidden = true; });
+  document.getElementById('exportPlainBtn').addEventListener('click', () => {
+    const song = currentEditorSongSnapshot();
+    downloadText(slugFilename(song.title, ''), buildExportText(song, 'withChords'));
+    document.getElementById('exportModal').hidden = true;
+  });
+  document.getElementById('exportLyricsOnlyBtn').addEventListener('click', () => {
+    const song = currentEditorSongSnapshot();
+    downloadText(slugFilename(song.title, '-text'), buildExportText(song, 'lyricsOnly'));
+    document.getElementById('exportModal').hidden = true;
+  });
+  document.getElementById('exportSunoBtn').addEventListener('click', () => {
+    const song = currentEditorSongSnapshot();
+    downloadText(slugFilename(song.title, '-suno'), buildExportText(song, 'suno'));
+    document.getElementById('exportModal').hidden = true;
+  });
 
   // ---------- Setlists ----------
 
@@ -410,6 +566,7 @@
     if (song.tempo) metaParts.push(song.tempo + ' bpm');
     if (song.timeSignature) metaParts.push(song.timeSignature);
     document.getElementById('viewerMeta').textContent = metaParts.join(' · ');
+    renderVersionChips('viewerVersionChips', song, song.id, (pickedId) => openViewer(pickedId, state.viewer.setlistContext));
 
     document.getElementById('songBody').innerHTML = window.Songbook.renderSong(song.text, {
       transpose: state.viewer.transpose,
@@ -458,11 +615,11 @@
   });
 
   document.getElementById('fontUp').addEventListener('click', () => {
-    state.viewer.fontScale = Math.min(2.2, state.viewer.fontScale + 0.1);
+    state.viewer.fontScale = Math.min(3, state.viewer.fontScale + 0.1);
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
   });
   document.getElementById('fontDown').addEventListener('click', () => {
-    state.viewer.fontScale = Math.max(0.7, state.viewer.fontScale - 0.1);
+    state.viewer.fontScale = Math.max(0.55, state.viewer.fontScale - 0.1);
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
   });
 
@@ -527,6 +684,197 @@
     if (document.visibilityState === 'visible' && document.getElementById('view-viewer').classList.contains('active')) {
       requestWakeLock();
     }
+  });
+
+  // ---------- Ljust/mörkt läge ----------
+
+  function applyTheme(theme) {
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('songbook-theme', theme); } catch (_) {}
+  }
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    applyTheme(isLight ? 'dark' : 'light');
+  });
+
+  // ---------- Öva utantill (inlärningsläge) ----------
+
+  const practice = {
+    songId: null,
+    title: '',
+    lines: [],
+    index: 0,
+    attempted: 0,
+    firstTryCorrect: 0,
+    returnView: 'viewer',
+  };
+
+  function tokenizeDisplay(str) {
+    return str.trim().split(/\s+/).filter(Boolean);
+  }
+  function normWord(w) {
+    return w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  }
+
+  // Ordvis diff mellan facit och det användaren skrev, baserad på längsta gemensamma delsekvens.
+  function diffLine(correctRaw, userRaw) {
+    const correctTokens = tokenizeDisplay(correctRaw);
+    const userTokens = tokenizeDisplay(userRaw);
+    const cNorm = correctTokens.map(normWord);
+    const uNorm = userTokens.map(normWord);
+    const n = cNorm.length, m = uNorm.length;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = (cNorm[i] === uNorm[j] && cNorm[i] !== '') ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (cNorm[i] === uNorm[j] && cNorm[i] !== '') { ops.push({ type: 'match', text: correctTokens[i] }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ type: 'missing', text: correctTokens[i] }); i++; }
+      else { ops.push({ type: 'extra', text: userTokens[j] }); j++; }
+    }
+    while (i < n) { ops.push({ type: 'missing', text: correctTokens[i] }); i++; }
+    while (j < m) { ops.push({ type: 'extra', text: userTokens[j] }); j++; }
+    return { ops, fullyCorrect: ops.every(o => o.type === 'match') && ops.length > 0 };
+  }
+
+  function buildPracticeLines(text) {
+    const sections = window.Songbook.parseSections(text);
+    const lines = [];
+    for (const sec of sections) {
+      let labelShown = false;
+      for (const line of sec.lines) {
+        if (line.kind === 'lyric' && line.lyric.trim()) {
+          lines.push({ text: line.lyric, sectionLabel: !labelShown ? sec.label : null });
+          labelShown = true;
+        }
+      }
+    }
+    return lines;
+  }
+
+  async function openPractice(songId, returnView) {
+    let song;
+    try { song = await Songs.get(songId); } catch (e) { toast(e.message, true); return; }
+    const lines = buildPracticeLines(song.text);
+    if (!lines.length) { toast('Den här låten har ingen text att öva på än', true); return; }
+    practice.songId = songId;
+    practice.title = song.title;
+    practice.lines = lines;
+    practice.index = 0;
+    practice.attempted = 0;
+    practice.firstTryCorrect = 0;
+    practice.returnView = returnView;
+    document.getElementById('practiceTitle').textContent = song.title;
+    document.getElementById('practiceLog').innerHTML = '';
+    document.getElementById('practiceSummary').hidden = true;
+    document.getElementById('practiceInputArea').hidden = false;
+    showView('practice');
+    renderPracticeStep();
+  }
+
+  function renderPracticeStep() {
+    const total = practice.lines.length;
+    document.getElementById('practiceProgress').textContent = `Rad ${practice.index + 1} av ${total}`;
+    const line = practice.lines[practice.index];
+    if (line && line.sectionLabel) {
+      const div = document.createElement('div');
+      div.className = 'practice-divider';
+      div.textContent = line.sectionLabel;
+      document.getElementById('practiceLog').appendChild(div);
+    }
+    const input = document.getElementById('practiceInput');
+    input.value = '';
+    input.disabled = false;
+    document.getElementById('checkLineBtn').hidden = false;
+    document.getElementById('revealLineBtn').hidden = false;
+    document.getElementById('nextLineBtn').hidden = true;
+    input.focus();
+  }
+
+  function appendPracticeLog(statusClass, html) {
+    const row = document.createElement('div');
+    row.className = 'practice-line ' + statusClass;
+    row.innerHTML = html;
+    const log = document.getElementById('practiceLog');
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function renderDiffHtml(ops) {
+    return ops.map(op => {
+      if (op.type === 'match') return `<span class="diff-match">${escapeHtml(op.text)}</span>`;
+      if (op.type === 'missing') return `<span class="diff-missing">${escapeHtml(op.text)}</span>`;
+      return `<span class="diff-extra">${escapeHtml(op.text)}</span>`;
+    }).join(' ');
+  }
+
+  function finishPracticeLine(statusClass, html) {
+    appendPracticeLog(statusClass, html);
+    document.getElementById('practiceInput').disabled = true;
+    document.getElementById('checkLineBtn').hidden = true;
+    document.getElementById('revealLineBtn').hidden = true;
+    document.getElementById('nextLineBtn').hidden = false;
+    document.getElementById('nextLineBtn').focus();
+  }
+
+  document.getElementById('checkLineBtn').addEventListener('click', () => {
+    const line = practice.lines[practice.index];
+    const userText = document.getElementById('practiceInput').value;
+    if (!userText.trim()) { toast('Skriv något, eller tryck Visa rad', true); return; }
+    const { ops, fullyCorrect } = diffLine(line.text, userText);
+    practice.attempted++;
+    if (fullyCorrect) {
+      practice.firstTryCorrect++;
+      finishPracticeLine('correct', `<span class="diff-match">${escapeHtml(line.text)}</span>`);
+    } else {
+      finishPracticeLine('partial', renderDiffHtml(ops));
+    }
+  });
+
+  document.getElementById('practiceInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!document.getElementById('checkLineBtn').hidden) document.getElementById('checkLineBtn').click();
+      else if (!document.getElementById('nextLineBtn').hidden) document.getElementById('nextLineBtn').click();
+    }
+  });
+
+  document.getElementById('revealLineBtn').addEventListener('click', () => {
+    const line = practice.lines[practice.index];
+    practice.attempted++;
+    finishPracticeLine('revealed', `<span class="diff-match">${escapeHtml(line.text)}</span>`);
+  });
+
+  document.getElementById('nextLineBtn').addEventListener('click', () => {
+    practice.index++;
+    if (practice.index >= practice.lines.length) {
+      showPracticeSummary();
+    } else {
+      renderPracticeStep();
+    }
+  });
+
+  function showPracticeSummary() {
+    document.getElementById('practiceInputArea').hidden = true;
+    document.getElementById('practiceSummary').hidden = false;
+    document.getElementById('practiceScoreText').textContent =
+      `${practice.firstTryCorrect} av ${practice.lines.length} rader rätt på första försöket.`;
+  }
+
+  document.getElementById('practiceBack').addEventListener('click', () => showView(practice.returnView));
+  document.getElementById('practiceSummaryBack').addEventListener('click', () => showView(practice.returnView));
+  document.getElementById('practiceAgainBtn').addEventListener('click', () => openPractice(practice.songId, practice.returnView));
+  document.getElementById('restartPractice').addEventListener('click', () => {
+    if (confirm('Börja om övningen från början?')) openPractice(practice.songId, practice.returnView);
+  });
+
+  document.getElementById('practiceFromViewer').addEventListener('click', () => {
+    if (state.viewer.songId) openPractice(state.viewer.songId, 'viewer');
   });
 
   // ---------- Utils ----------

@@ -112,6 +112,70 @@ Det var en [Em]gång i [C]tiden
 - Öppnar du scenläget från en **setlista** får du "Föregående/Nästa"-knappar för att bläddra
   genom hela spellistan utan att gå tillbaka till biblioteket.
 
+## Ljust och mörkt läge
+
+Solen-ikonen (◐) i toppfältet växlar mellan mörkt scenläge och ett ljusare, varmare läge för
+replokal eller dator i dagsljus. Valet sparas på enheten och gäller tills du växlar igen.
+
+## Öva utantill (inlärningsläge)
+
+Eftersom du lär dig texterna utantill och inte har någon app eller papper med dig på scen är
+det här läget själva poängen med appen, inte scenvisningen. Öppna en låt och tryck
+**"Öva utantill"**:
+
+- Raderna kommer en i taget. Skriv det du minns av raden och tryck **Rätta** (eller Enter).
+- Är den exakt rätt markeras den teal och du går vidare.
+- Saknas ord eller är fel markeras vad som **fattas** (understruket i amber) och vad du skrev
+  som **inte stämmer** (rött, genomstruket) — sedan går du vidare till nästa rad.
+- Kör fast? **Visa rad** avslöjar den utan gissning, så du kan fortsätta framåt.
+- I slutet får du en sammanfattning: hur många rader du fick rätt på första försöket. Perfekt
+  att köra samma låt några gånger i rad och se förbättringen.
+
+Bara sångtexten räknas in — ackord och scenanteckningar (`>`-rader) hoppas över, eftersom det
+är orden du ska minnas, inte ackordgreppen.
+
+## Skriva med knappar istället för markup
+
+Ovanför textfältet i editorn finns tre knappar — **+ Rubrik**, **+ Ackord**, **+ Anteckning** —
+som skriver in rätt syntax åt dig på markörens position (eller runt en markerad text, t.ex.
+markera "Am" och tryck + Ackord för att få `[Am]`). Praktiskt på mobil där hakparenteser och
+`##` är krångliga att hitta på tangentbordet.
+
+## Zoom och långa rader
+
+**Textstorlek A−/A+** i scenläget zoomar in eller ut. Rader med ackord håller alltid ackorden
+rätt positionerade ovanför rätt stavelse — blir en rad för lång för skärmen vid hög zoom går
+den att svepa i sidled istället för att radbryta och förstöra ackordplaceringen. Rena textrader
+utan ackord radbryts som vanligt.
+
+## Versioner av samma låt
+
+Har du flera versioner av samma låt (studio, akustisk, liveversion, olika mixar du provar) —
+tryck **+ Ny version** i editorn för en låt du redan sparat. Det skapar en kopia med samma
+titel som utgångspunkt, döpt V2 (eller vad du vill kalla den i **Version**-fältet). Så fort en
+låt har fler än en version dyker små flikar upp (V1 · V2 · Akustisk ...) både i editorn och i
+scenläget, så du kan hoppa mellan dem direkt.
+
+## Exportera
+
+**Exportera**-knappen i editorn ger tre varianter som .txt-filer:
+- **Text med ackord** — precis som du skrev den, ackord kvar inline.
+- **Bara text** — ren sångtext utan ackord, bra för Word eller utskrift.
+- **Suno-format** — avsnittsrubriker omvandlade till `[Verse]`, `[Chorus]` osv. som Suno
+  förväntar sig, ackord borttagna.
+
+## Vidareutveckling (roadmap, egen session)
+
+En större modul för utrustnings- och gigförberedelse är på gång: registrera vilken utrustning
+du och bandet har, räkna ut vad som krävs (t.ex. antal kablar utifrån vald utrustning), bocka av
+inför ett gig, skriva ut packlistor, och på sikt foton samt färdiga "uppsättningar" per gigtyp.
+Det är en egen datamodell och ett eget gränssnitt, så det byggs som ett separat tillägg när det
+är dags.
+
+En annan idé för framtiden: casta aktuell setlista till en skärm i replokalen (t.ex. via en
+Raspberry Pi), busshållplats-stil — "Nu spelar: Barren World (Drop D) · Nästa: Water Under My Bed"
+— så hela bandet ser var man är i låtlistan utan att titta på telefonen.
+
 ## Backup
 
 All din data ligger i `data/songs.json` och `data/setlists.json`. Två läsbara textfiler —
