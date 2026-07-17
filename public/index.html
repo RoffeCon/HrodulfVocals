@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Songbook</title>
+<meta name="theme-color" content="#15120e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Toppfält -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">♪</span>
+      <span class="brand-name">Songbook</span>
+      <span class="conn-dot" id="connDot" title="Anslutning"></span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="library">Bibliotek</button>
+      <button class="tab" data-view="setlists">Setlistor</button>
+    </nav>
+  </header>
+
+  <!-- BIBLIOTEK -->
+  <section id="view-library" class="view active">
+    <div class="toolbar">
+      <input id="songSearch" type="search" placeholder="Sök titel, kompositör, tagg…" autocomplete="off">
+      <button class="btn btn-accent" id="newSongBtn">+ Ny låt</button>
+    </div>
+    <ul id="songList" class="song-list"></ul>
+    <p id="libraryEmpty" class="empty-state" hidden>Inga låtar än. Tryck på <strong>+ Ny låt</strong> för att skriva din första.</p>
+  </section>
+
+  <!-- SETLISTOR -->
+  <section id="view-setlists" class="view">
+    <div class="toolbar">
+      <input id="setlistSearch" type="search" placeholder="Sök setlista…" autocomplete="off">
+      <button class="btn btn-accent" id="newSetlistBtn">+ Ny setlista</button>
+    </div>
+    <ul id="setlistList" class="setlist-list"></ul>
+    <p id="setlistsEmpty" class="empty-state" hidden>Inga setlistor än. Bygg en för nästa spelning.</p>
+  </section>
+
+  <!-- LÅT-EDITOR -->
+  <section id="view-editor" class="view">
+    <div class="editor-header">
+      <button class="btn btn-ghost" id="editorBack">← Tillbaka</button>
+      <div class="editor-actions">
+        <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
+        <button class="btn btn-accent" id="saveSongBtn">Spara</button>
+      </div>
+    </div>
+    <div class="editor-grid">
+      <div class="field-grid">
+        <label>Titel<input id="f-title" type="text" placeholder="Titel"></label>
+        <label>Kompositör<input id="f-composer" type="text" placeholder="Kompositör / text"></label>
+        <label>Tonart<input id="f-key" type="text" placeholder="t.ex. Em"></label>
+        <label>Kapo<input id="f-capo" type="text" placeholder="t.ex. 2"></label>
+        <label>Tempo (BPM)<input id="f-tempo" type="text" placeholder="t.ex. 96"></label>
+        <label>Taktart<input id="f-time" type="text" placeholder="t.ex. 4/4"></label>
+        <label class="field-wide">Taggar (komma-separerat)<input id="f-tags" type="text" placeholder="rock, egen, soundcheck"></label>
+      </div>
+      <label class="field-wide">Anteckningar<textarea id="f-notes" rows="2" placeholder="Scenanvisningar, historik, vad du vill"></textarea></label>
+
+      <div class="body-editor">
+        <div class="body-editor-head">
+          <span>Text &amp; ackord</span>
+          <button class="btn btn-tiny" id="helpBtn" type="button">Hur skriver jag?</button>
+        </div>
+        <textarea id="f-text" class="body-textarea" spellcheck="false" placeholder="## Vers 1
+Det var en [C]gång i [G]tiden
+
+## Refräng
+[F]Minns att [C]skratta[G]"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- LÅT-VISNING / SCENLÄGE -->
+  <section id="view-viewer" class="view viewer">
+    <div class="viewer-topbar">
+      <button class="btn btn-ghost" id="viewerBack">← Tillbaka</button>
+      <div class="viewer-title-block">
+        <div id="viewerTitle" class="viewer-title"></div>
+        <div id="viewerMeta" class="viewer-meta"></div>
+      </div>
+      <button class="btn btn-ghost" id="editFromViewer">Redigera</button>
+    </div>
+
+    <div class="viewer-controls">
+      <div class="control-group">
+        <span class="control-label">Ackord</span>
+        <button class="btn btn-toggle" id="toggleChords">Visa</button>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Transponera</span>
+        <button class="btn btn-icon" id="transDown">−</button>
+        <span id="transVal">0</span>
+        <button class="btn btn-icon" id="transUp">+</button>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Textstorlek</span>
+        <button class="btn btn-icon" id="fontDown">A−</button>
+        <button class="btn btn-icon" id="fontUp">A+</button>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Autoscroll</span>
+        <button class="btn btn-toggle" id="toggleScroll">Av</button>
+        <input type="range" id="scrollSpeed" min="1" max="10" value="4">
+      </div>
+      <div class="control-group setlist-nav" id="setlistNav" hidden>
+        <button class="btn btn-icon" id="prevSongBtn">‹ Föreg.</button>
+        <span id="setlistPos"></span>
+        <button class="btn btn-icon" id="nextSongBtn">Nästa ›</button>
+      </div>
+    </div>
+
+    <div id="songBody" class="song-body"></div>
+  </section>
+
+  <!-- SETLIST-EDITOR -->
+  <section id="view-setlist-editor" class="view">
+    <div class="editor-header">
+      <button class="btn btn-ghost" id="setlistEditorBack">← Tillbaka</button>
+      <div class="editor-actions">
+        <button class="btn btn-danger" id="deleteSetlistBtn">Radera</button>
+        <button class="btn btn-accent" id="saveSetlistBtn">Spara</button>
+      </div>
+    </div>
+    <div class="field-grid">
+      <label>Namn<input id="sl-name" type="text" placeholder="t.ex. Sommarturné 2026"></label>
+      <label>Spelställe<input id="sl-venue" type="text" placeholder="t.ex. Debaser"></label>
+      <label>Datum<input id="sl-date" type="date"></label>
+      <label class="field-wide">Anteckningar<input id="sl-notes" type="text" placeholder="Ljudtekniker, backline, vad som helst"></label>
+    </div>
+
+    <div class="setlist-builder">
+      <div class="setlist-builder-col">
+        <h3>Låtar i setlistan</h3>
+        <ul id="setlistSongs" class="reorder-list"></ul>
+        <p id="setlistEmptyMsg" class="empty-state small">Inga låtar tillagda än.</p>
+      </div>
+      <div class="setlist-builder-col">
+        <h3>Lägg till från biblioteket</h3>
+        <input id="addSongSearch" type="search" placeholder="Sök låt att lägga till…">
+        <ul id="addSongList" class="song-list compact"></ul>
+      </div>
+    </div>
+
+    <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>
+  </section>
+
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<div id="helpModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>Så skriver du text &amp; ackord</h3>
+    <ul>
+      <li>Rubrik för avsnitt: skriv <code>##</code> följt av namn på egen rad, t.ex. <code>## Vers 1</code>, <code>## Refräng</code>, <code>## Stick</code>.</li>
+      <li>Ackord skrivs inline i hakparenteser precis där de klingar: <code>Det var en [C]gång</code>.</li>
+      <li>Anteckningsrader (visas kursivt, transponeras inte) börjar med <code>&gt;</code>, t.ex. <code>&gt; spela mjukt här</code>.</li>
+      <li>Refränger och verser färgmarkeras automatiskt utifrån ordet i rubriken (vers/refräng/stick).</li>
+    </ul>
+    <button class="btn btn-accent" id="closeHelp">Stäng</button>
+  </div>
+</div>
+
+<script src="chordpro.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
