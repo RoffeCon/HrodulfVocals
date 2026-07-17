@@ -17,7 +17,7 @@
   <!-- Toppfält -->
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">♪</span>
+      <span class="brand-mark">♠</span>
       <span class="brand-name">Songbook</span>
       <span class="conn-dot" id="connDot" title="Anslutning"></span>
     </div>
@@ -71,6 +71,13 @@
       <div class="body-editor">
         <div class="body-editor-head">
           <span>Text &amp; ackord</span>
+          <div class="markup-toolbar">
+            <button class="btn btn-tiny btn-markup" id="insertHeadingBtn" type="button" title="Infoga rubrik (##)">##</button>
+            <button class="btn btn-tiny btn-markup" id="insertChordBtn" type="button" title="Infoga ackord []">[]</button>
+            <button class="btn btn-tiny btn-markup" id="insertCommentBtn" type="button" title="Infoga anteckning (>>)">>&gt;</button>
+            <button class="btn btn-tiny btn-markup" id="insertVerseBtn" type="button" title="Infoga vers (## Vers)">V</button>
+            <button class="btn btn-tiny btn-markup" id="insertChorusBtn" type="button" title="Infoga refräng (## Refräng)">R</button>
+          </div>
           <button class="btn btn-tiny" id="helpBtn" type="button">Hur skriver jag?</button>
         </div>
         <textarea id="f-text" class="body-textarea" spellcheck="false" placeholder="## Vers 1
@@ -105,6 +112,12 @@ Det var en [C]gång i [G]tiden
         <button class="btn btn-icon" id="transUp">+</button>
       </div>
       <div class="control-group">
+        <span class="control-label">Zoom</span>
+        <button class="btn btn-icon" id="zoomOut">−</button>
+        <span id="zoomVal">100%</span>
+        <button class="btn btn-icon" id="zoomIn">+</button>
+      </div>
+      <div class="control-group">
         <span class="control-label">Textstorlek</span>
         <button class="btn btn-icon" id="fontDown">A−</button>
         <button class="btn btn-icon" id="fontUp">A+</button>
@@ -115,9 +128,12 @@ Det var en [C]gång i [G]tiden
         <input type="range" id="scrollSpeed" min="1" max="10" value="4">
       </div>
       <div class="control-group setlist-nav" id="setlistNav" hidden>
-        <button class="btn btn-icon" id="prevSongBtn">‹ Föreg.</button>
+        <button class="btn btn-icon" id="prevSongBtn">› Föreg.</button>
         <span id="setlistPos"></span>
-        <button class="btn btn-icon" id="nextSongBtn">Nästa ›</button>
+        <button class="btn btn-icon" id="nextSongBtn">Nästa ‹</button>
+      </div>
+      <div class="control-group">
+        <button class="btn btn-accent" id="exportBtn">Exportera</button>
       </div>
     </div>
 
@@ -159,6 +175,29 @@ Det var en [C]gång i [G]tiden
 </div>
 
 <div id="toast" class="toast" hidden></div>
+
+<!-- Export Modal -->
+<div id="exportModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>Exportera låt</h3>
+    <p>Kopiera texten nedan för att använda i andra program:</p>
+    <textarea id="exportText" class="export-textarea" readonly spellcheck="false"></textarea>
+    <div class="export-actions">
+      <button class="btn btn-accent" id="copyExportBtn">Kopiera till urklipp</button>
+      <button class="btn btn-ghost" id="closeExportBtn">Stäng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Version Modal -->
+<div id="versionModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>Välj version</h3>
+    <div id="versionList" class="version-list"></div>
+    <button class="btn btn-ghost" id="closeVersionBtn">Stäng</button>
+  </div>
+</div>
+
 <div id="helpModal" class="modal" hidden>
   <div class="modal-card">
     <h3>Så skriver du text &amp; ackord</h3>

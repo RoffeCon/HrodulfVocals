@@ -10,10 +10,11 @@
     viewer: {
       songId: null,
       song: null,
-      setlistContext: null, // {setlist, index}
+      setlistContext: null,
       transpose: 0,
       showChords: true,
       fontScale: 1,
+      zoomLevel: 1,
       scrolling: false,
       scrollSpeed: 4,
       wakeLock: null,
@@ -118,15 +119,18 @@
       return hay.includes(q);
     });
     document.getElementById('libraryEmpty').hidden = state.songs.length > 0;
-    list.innerHTML = filtered.map(s => `
+    list.innerHTML = filtered.map(s => {
+      const versionCount = s.versions ? Object.keys(s.versions).length : 0;
+      const versionBadge = versionCount > 1 ? ` <span class="version-badge">V${versionCount}</span>` : '';
+      return `
       <li class="song-row" data-id="${s.id}">
         <div class="song-row-main" data-action="view">
-          <div class="song-row-title">${escapeHtml(s.title)}</div>
+          <div class="song-row-title">${escapeHtml(s.title)}${versionBadge}</div>
           <div class="song-row-sub">${[s.composer, s.key, s.tempo && s.tempo + ' bpm'].filter(Boolean).map(escapeHtml).join(' · ')}</div>
         </div>
         <button class="btn btn-tiny" data-action="edit">Redigera</button>
       </li>
-    `).join('');
+    `}).join('');
   }
 
   document.getElementById('songSearch').addEventListener('input', renderLibrary);
@@ -138,7 +142,12 @@
     if (e.target.closest('[data-action="edit"]')) {
       openEditor(id, 'library');
     } else {
-      openViewer(id, null);
+      const song = state.songs.find(s => s.id === id);
+      if (song && song.versions && Object.keys(song.versions).length > 1) {
+        showVersionModal(id, song);
+      } else {
+        openViewer(id, null);
+      }
     }
   });
 
@@ -147,7 +156,7 @@
   // ---------- Song editor ----------
 
   function blankSong() {
-    return { title: '', composer: '', key: '', capo: '', tempo: '', timeSignature: '', tags: [], notes: '', text: '' };
+    return { title: '', composer: '', key: '', capo: '', tempo: '', timeSignature: '', tags: [], notes: '', text: '', versions: {} };
   }
 
   async function openEditor(id, returnView) {
@@ -186,6 +195,7 @@
       tags: document.getElementById('f-tags').value.split(',').map(t => t.trim()).filter(Boolean),
       notes: document.getElementById('f-notes').value,
       text: document.getElementById('f-text').value,
+      versions: {}, // Versions will be handled separately
     };
     try {
       if (state.currentSongId) {
@@ -215,6 +225,46 @@
 
   document.getElementById('helpBtn').addEventListener('click', () => { document.getElementById('helpModal').hidden = false; });
   document.getElementById('closeHelp').addEventListener('click', () => { document.getElementById('helpModal').hidden = true; });
+
+  // ---------- Markup toolbar functions ----------
+
+  function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+    textarea.value = before + text + after;
+    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+    textarea.focus();
+  }
+
+  document.getElementById('insertHeadingBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('f-text');
+    insertAtCursor(textarea, '## ');
+  });
+
+  document.getElementById('insertChordBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('f-text');
+    insertAtCursor(textarea, '[]');
+    // Move cursor inside the brackets
+    const pos = textarea.selectionStart - 1;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+  });
+
+  document.getElementById('insertCommentBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('f-text');
+    insertAtCursor(textarea, '> ');
+  });
+
+  document.getElementById('insertVerseBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('f-text');
+    insertAtCursor(textarea, '\n## Vers\n');
+  });
+
+  document.getElementById('insertChorusBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('f-text');
+    insertAtCursor(textarea, '\n## Refräng\n');
+  });
 
   // ---------- Setlists ----------
 
@@ -378,7 +428,9 @@
     state.viewer.songId = songId;
     state.viewer.setlistContext = setlistContext;
     state.viewer.transpose = 0;
+    state.viewer.zoomLevel = 1;
     document.getElementById('transVal').textContent = '0';
+    document.getElementById('zoomVal').textContent = '100%';
     try {
       state.viewer.song = await Songs.get(songId);
     } catch (e) { toast(e.message, true); return; }
@@ -417,6 +469,7 @@
       preferFlats,
     });
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
+    document.getElementById('songBody').style.setProperty('--zoom-level', state.viewer.zoomLevel);
 
     const nav = document.getElementById('setlistNav');
     if (state.viewer.setlistContext) {
@@ -442,7 +495,7 @@
 
   document.getElementById('toggleChords').addEventListener('click', (e) => {
     state.viewer.showChords = !state.viewer.showChords;
-    e.target.textContent = state.viewer.showChords ? 'Visa' : 'Dold';
+    e.target.textContent = state.viewer.showChords ? 'Visa' : 'Dölj';
     renderViewer();
   });
 
@@ -464,6 +517,19 @@
   document.getElementById('fontDown').addEventListener('click', () => {
     state.viewer.fontScale = Math.max(0.7, state.viewer.fontScale - 0.1);
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
+  });
+
+  // Zoom functions
+  document.getElementById('zoomIn').addEventListener('click', () => {
+    state.viewer.zoomLevel = Math.min(2, state.viewer.zoomLevel + 0.1);
+    document.getElementById('zoomVal').textContent = `${Math.round(state.viewer.zoomLevel * 100)}%`;
+    document.getElementById('songBody').style.setProperty('--zoom-level', state.viewer.zoomLevel);
+  });
+
+  document.getElementById('zoomOut').addEventListener('click', () => {
+    state.viewer.zoomLevel = Math.max(0.5, state.viewer.zoomLevel - 0.1);
+    document.getElementById('zoomVal').textContent = `${Math.round(state.viewer.zoomLevel * 100)}%`;
+    document.getElementById('songBody').style.setProperty('--zoom-level', state.viewer.zoomLevel);
   });
 
   document.getElementById('prevSongBtn').addEventListener('click', () => stepSetlist(-1));
@@ -509,7 +575,103 @@
     state.viewer.scrollSpeed = parseInt(e.target.value, 10);
   });
 
-  // Wake Lock (håll skärmen tänd på scen)
+  // Export functions
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    if (!state.viewer.song) return;
+    const song = state.viewer.song;
+    const preferFlats = window.Songbook.prefersFlats(song.key);
+    const rendered = window.Songbook.renderSong(song.text, {
+      transpose: state.viewer.transpose,
+      showChords: true,
+      preferFlats,
+    });
+    
+    const metaLines = [];
+    if (song.title) metaLines.push(`Titel: ${song.title}`);
+    if (song.composer) metaLines.push(`Kompositör: ${song.composer}`);
+    if (song.key) {
+      const transposedKey = state.viewer.transpose
+        ? window.Songbook.transposeChord(song.key, state.viewer.transpose, preferFlats)
+        : song.key;
+      metaLines.push(`Tonart: ${transposedKey}${state.viewer.transpose ? ` (orig. ${song.key})` : ''}`);
+    }
+    if (song.capo) metaLines.push(`Kapo: ${song.capo}`);
+    if (song.tempo) metaLines.push(`Tempo: ${song.tempo} bpm`);
+    if (song.timeSignature) metaLines.push(`Taktart: ${song.timeSignature}`);
+    if (song.notes) metaLines.push(`Anteckningar: ${song.notes}`);
+    
+    const exportText = [...metaLines, '', rendered].join('\n');
+    document.getElementById('exportText').value = exportText;
+    document.getElementById('exportModal').hidden = false;
+  });
+
+  document.getElementById('copyExportBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('exportText');
+    textarea.select();
+    try {
+      document.execCommand('copy');
+      toast('Kopierat till urklipp!');
+    } catch (e) {
+      navigator.clipboard.writeText(textarea.value).then(() => {
+        toast('Kopierat till urklipp!');
+      }).catch(() => {
+        toast('Kunde inte kopiera', true);
+      });
+    }
+    document.getElementById('exportModal').hidden = true;
+  });
+
+  document.getElementById('closeExportBtn').addEventListener('click', () => {
+    document.getElementById('exportModal').hidden = true;
+  });
+
+  // Version modal functions
+  function showVersionModal(songId, song) {
+    const modal = document.getElementById('versionModal');
+    const list = document.getElementById('versionList');
+    
+    if (song.versions && Object.keys(song.versions).length > 1) {
+      const versions = Object.entries(song.versions).map(([version, data]) => ({
+        version,
+        date: data.date || 'Okänt datum',
+        title: data.title || song.title,
+      }));
+      
+      list.innerHTML = versions.map(v => `
+        <div class="version-item" data-version="${v.version}">
+          <span class="version-name">${escapeHtml(v.title)} - Version ${escapeHtml(v.version)}</span>
+          <span class="version-date">${escapeHtml(v.date)}</span>
+          <span class="version-actions">
+            <button class="btn btn-tiny btn-accent" data-action="load">Öppna</button>
+          </span>
+        </div>
+      `).join('');
+      
+      list.addEventListener('click', (e) => {
+        const item = e.target.closest('.version-item');
+        if (!item) return;
+        const version = item.dataset.version;
+        if (e.target.dataset.action === 'load') {
+          // Load the specific version
+          openViewer(songId, null);
+          modal.hidden = true;
+        }
+      });
+    } else {
+      // No versions, just open the song
+      openViewer(songId, null);
+      return;
+    }
+    
+    modal.hidden = false;
+  }
+
+  document.getElementById('closeVersionBtn').addEventListener('click', () => {
+    document.getElementById('versionModal').hidden = true;
+  });
+
+  // ---------- Wake Lock (håll skärmen tänd på scen) ----------
+
   async function requestWakeLock() {
     try {
       if ('wakeLock' in navigator) {
