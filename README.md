@@ -93,13 +93,27 @@ Om du redan har servern igång i en `tmux`-session måste du avsluta den gamla p
 ## Använda från datorn
 
 Så länge datorn är på **samma wifi-nätverk** som telefonen: öppna webbläsaren och gå till
-`http://<telefonens-ip>:8420` (IP-adressen skrivs ut när servern startar). Där kan du skriva
-och redigera låtar med tangentbord — ändringar dyker upp direkt på telefonen också, tack vare
-en liten websocket-koppling som håller alla anslutna enheter i synk i realtid.
+`http://<telefonens-ip>:8420` (IP-adressen skrivs ut när servern startar, och syns även i appen
+via ⓘ-knappen i toppfältet). Där kan du skriva och redigera låtar med tangentbord — ändringar
+dyker upp direkt på telefonen också, tack vare en liten websocket-koppling som håller alla
+anslutna enheter i synk i realtid.
 
 Vill du ha en fast adress istället för att leta upp IP:n varje gång? Sätt ett statiskt IP eller
-en DHCP-reservation för telefonen i din router (du har ju redan Pi-hole i hemmalabbet — går
-utmärkt att lägga till en DNS-post där, t.ex. `songbook.hem` → telefonens IP).
+en DHCP-reservation för telefonen i din router.
+
+### Chrome blockerar eller varnar för "osäker anslutning"
+
+Nyare Chrome-versioner tvingar som standard fram HTTPS överallt ("Always use secure
+connections"). En lokal server som den här kan inte ha ett riktigt certifikat (det kräver ett
+publikt domännamn), så Chrome kan blockera eller varna hårt för adressen. Fixa det permanent,
+en gång per enhet/dator:
+
+1. Gå till `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+2. Klistra in `http://<telefonens-ip>:8420` i fältet som visas
+3. Sätt flaggan till **Enabled** och klicka **Relaunch**
+
+Detta löser även att funktioner som kräver en "säker kontext" (t.ex. att skärmen hålls vaken
+under autoscroll) fungerar även när du ansluter via IP-adress istället för `localhost`.
 
 ## Skriva låtar: textformatet
 
@@ -267,13 +281,44 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Nytt i denna omgång (Önskelista 2)
+
+- **Ny logotyp** - din egen L/M-emblem, både som appikon och i en fullständig banner
+  (`public/icons/logo-banner.png`).
+- **Artist-fält** - separat från kompositör (Elvis skrev sällan sina egna låtar). Filtrera
+  biblioteket på artist med rullgardinen ovanför listan.
+- **ⓘ Anslutning &amp; backup** - toppfältets info-knapp visar telefonens IP direkt i appen
+  (ingen mer letande i Termux) och låter dig ladda ner en fullständig backup (låtar, setlistor,
+  rim) som en JSON-fil.
+- **Autoscroll, finjusterat**:
+  - +/- -knappar istället för slidern, finare steg (1-20).
+  - Knappen heter nu Pausad/Rullar - tydligare att det går att pausa och fortsätta.
+  - ⚙ vid autoscroll-kontrollerna: ställ in vad som händer när låten scrollats klart -
+    stanna kvar, hoppa till toppen, eller gå vidare till nästa låt i setlistan automatiskt
+    efter valfri fördröjning (med en Avbryt-knapp under nedräkningen).
+- **Tomrader i en refräng/vers** stör inte längre färgmarkeringen - en enstaka tomrad är bara
+  en läsbarhetspaus. Det krävs numera **två** tomrader i rad för att avsluta en
+  refräng/stick-färgning, så du kan dela upp en lång refräng i stycken utan att tänka på det.
+- **Ackord-snabbval** - ackord du redan skrivit i låten dyker upp som klickbara chips ovanför
+  textfältet, så du slipper skriva samma ackord för hand mer än en gång.
+- **Rimlexikonet har nu två lägen**: **Sök** (standard när du öppnar panelen - bara ett sökfält,
+  ingen lång lista i vägen) och **Hantera** (lägga till/redigera/massåtgärder/import/export).
+  Sökläget har ett rent uppslag - skriv ett ord, se vad som rimmar - separat från
+  radnärhetssökningen i låtar. Rim kan nu även ha ett **stavelseantal**, och exporteras som
+  egen JSON-backup.
+- **Dra-och-släpp** i setlist-byggaren - grepp i ⠿-handtaget och dra en rad till rätt plats
+  (fungerar med både mus och touch). ▲▼-knapparna finns kvar om du föredrar dem.
+- **🖨 Skriv ut setlista** - öppnar en utskriftsvänlig sida med hela spellistan (grupprubriker,
+  låttexter och ackord inkluderade) - perfekt att skriva ut och ge till en gästmusiker.
+
 ## Backup
 
-All din data ligger i `data/songs.json` och `data/setlists.json`. Två läsbara textfiler —
-inget konstigt databasformat. Säkerhetskopiera dem som du vill: `git commit`, molnsynk av
-mappen, eller helt enkelt en kopia då och då. Appen skriver aldrig direkt till filen utan
-skriver till en temporär fil och byter namn atomärt, så en avbruten skrivning ska aldrig kunna
-förstöra din data.
+All din data ligger i `data/songs.json`, `data/setlists.json` och `data/rhymes.json`. Tre
+läsbara textfiler — inget konstigt databasformat. Säkerhetskopiera dem som du vill:
+`git commit`, molnsynk av mappen, en kopia då och då, eller enklast: **ⓘ-knappen i appen** →
+**Ladda ner backup**, som ger dig en komplett JSON-fil med allt i ett svep. Appen skriver
+aldrig direkt till filerna utan skriver till en temporär fil och byter namn atomärt, så en
+avbruten skrivning ska aldrig kunna förstöra din data.
 
 ## Tekniken bakom, kort
 

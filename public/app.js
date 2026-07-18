@@ -141,11 +141,22 @@
       </li>`;
   }
 
+  function populateArtistFilter() {
+    const sel = document.getElementById('artistFilter');
+    const current = sel.value;
+    const artists = Array.from(new Set(state.songs.map(s => (s.artist || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'sv'));
+    sel.innerHTML = '<option value="">Alla artister</option>' + artists.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    if (artists.includes(current)) sel.value = current;
+  }
+
   function renderLibrary() {
     const q = document.getElementById('songSearch').value.trim().toLowerCase();
+    const artistFilter = document.getElementById('artistFilter').value;
+    populateArtistFilter();
     const filtered = state.songs.filter(s => {
+      if (artistFilter && (s.artist || '') !== artistFilter) return false;
       if (!q) return true;
-      const hay = [s.title, s.composer, ...(s.tags || [])].join(' ').toLowerCase();
+      const hay = [s.title, s.composer, s.artist, ...(s.tags || [])].join(' ').toLowerCase();
       return hay.includes(q);
     });
     document.getElementById('libraryEmpty').hidden = state.songs.length > 0;
@@ -179,6 +190,7 @@
 
   document.getElementById('songSearch').addEventListener('input', renderLibrary);
   document.getElementById('showNotesToggle').addEventListener('change', renderLibrary);
+  document.getElementById('artistFilter').addEventListener('change', renderLibrary);
 
   function startInlineRename(row, id) {
     const song = state.songs.find(s => s.id === id);
@@ -288,7 +300,7 @@
   // ---------- Song editor ----------
 
   function blankSong() {
-    return { title: '', composer: '', key: '', capo: '', tempo: '', timeSignature: '', tags: [], notes: '', text: '' };
+    return { title: '', composer: '', artist: '', key: '', capo: '', tempo: '', timeSignature: '', tags: [], notes: '', text: '' };
   }
 
   function siblingsOf(song) {
@@ -317,6 +329,7 @@
     }
     document.getElementById('f-title').value = song.title || '';
     document.getElementById('f-composer').value = song.composer || '';
+    document.getElementById('f-artist').value = song.artist || '';
     document.getElementById('f-key').value = song.key || '';
     document.getElementById('f-capo').value = song.capo || '';
     document.getElementById('f-tempo').value = song.tempo || '';
@@ -326,6 +339,7 @@
     document.getElementById('f-notes').value = song.notes || '';
     document.getElementById('f-text').value = song.text || '';
     savedSelection = { start: (song.text || '').length, end: (song.text || '').length };
+    renderChordChips();
     document.getElementById('deleteSongBtn').hidden = !id;
     document.getElementById('newVersionBtn').hidden = !id;
     if (id) renderVersionChips('editorVersionChips', song, id, (pickedId) => openEditor(pickedId, returnView));
@@ -352,6 +366,7 @@
     const data = {
       title,
       composer: document.getElementById('f-composer').value.trim(),
+      artist: document.getElementById('f-artist').value.trim(),
       key: document.getElementById('f-key').value.trim(),
       capo: document.getElementById('f-capo').value.trim(),
       tempo: document.getElementById('f-tempo').value.trim(),
@@ -400,10 +415,31 @@
   }
   ['select', 'keyup', 'mouseup', 'touchend', 'input'].forEach(evt => textEditor.addEventListener(evt, captureSelection));
 
-  function insertMarkup(kind) {
+  function applyTextareaInsert(before, placeholder, after) {
     const ta = textEditor;
     const start = savedSelection.start, end = savedSelection.end;
     const value = ta.value;
+    const insertText = before + placeholder + after;
+    ta.value = value.slice(0, start) + insertText + value.slice(end);
+    const selStart = start + before.length;
+    const selEnd = selStart + placeholder.length;
+    savedSelection = { start: selStart, end: selEnd };
+
+    // {preventScroll:true} stoppar webbläsaren från att hoppa i sidled/höjdled när
+    // fältet fokuseras om efter att värdet bytts ut - annars kan hela gränssnittet
+    // hoppa iväg på mobil. Vi positionerar textarean själv manuellt istället, så
+    // markeringen ändå syns.
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(selStart, selEnd);
+    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    const linesBefore = ta.value.slice(0, selStart).split('\n').length - 1;
+    ta.scrollTop = Math.max(0, linesBefore * lineHeight - ta.clientHeight / 2);
+    renderChordChips();
+  }
+
+  function insertMarkup(kind) {
+    const start = savedSelection.start, end = savedSelection.end;
+    const value = textEditor.value;
     const selected = value.slice(start, end);
     const atLineStart = start === 0 || value[start - 1] === '\n';
     let before = '', placeholder = selected, after = '';
@@ -421,23 +457,27 @@
       placeholder = selected || 'anteckning';
       after = '';
     }
-
-    const insertText = before + placeholder + after;
-    ta.value = value.slice(0, start) + insertText + value.slice(end);
-    const selStart = start + before.length;
-    const selEnd = selStart + placeholder.length;
-    savedSelection = { start: selStart, end: selEnd };
-
-    // {preventScroll:true} stoppar webbläsaren från att hoppa i sidled/höjdled när
-    // fältet fokuseras om efter att värdet bytts ut - annars kan hela gränssnittet
-    // hoppa iväg på mobil. Vi positionerar textarean själv manuellt istället, så
-    // markeringen ändå syns.
-    ta.focus({ preventScroll: true });
-    ta.setSelectionRange(selStart, selEnd);
-    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
-    const linesBefore = ta.value.slice(0, selStart).split('\n').length - 1;
-    ta.scrollTop = Math.max(0, linesBefore * lineHeight - ta.clientHeight / 2);
+    applyTextareaInsert(before, placeholder, after);
   }
+
+  // Ackord som redan använts i låten visas som snabbvalschips, så du bara behöver
+  // skriva ett ackord för hand en gång - resten kan du klicka in.
+  function renderChordChips() {
+    const seen = [];
+    const re = /\[([^\]]+)\]/g;
+    let m;
+    while ((m = re.exec(textEditor.value))) {
+      if (!seen.includes(m[1])) seen.push(m[1]);
+    }
+    const box = document.getElementById('chordChips');
+    box.innerHTML = seen.map(c => `<span class="chord-chip" data-chord="${escapeHtml(c)}">${escapeHtml(c)}</span>`).join('');
+  }
+  document.getElementById('chordChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chord-chip');
+    if (!chip) return;
+    applyTextareaInsert('[', chip.dataset.chord, ']');
+  });
+  textEditor.addEventListener('input', renderChordChips);
 
   document.querySelectorAll('[data-insert]').forEach(btn => {
     btn.addEventListener('click', () => insertMarkup(btn.dataset.insert));
@@ -605,6 +645,7 @@
       if (item.kind === 'group') {
         return `
           <li class="reorder-row group-header" data-idx="${i}">
+            <span class="drag-handle" data-idx="${i}">⠿</span>
             <span class="reorder-index">§</span>
             <input class="reorder-title group-label-input" data-idx="${i}" type="text" value="${escapeHtml(item.label)}" placeholder="Grupprubrik, t.ex. E-stämning">
             <span class="reorder-btns">
@@ -619,6 +660,7 @@
       songNumber++;
       return `
         <li class="reorder-row" data-idx="${i}">
+          <span class="drag-handle" data-idx="${i}">⠿</span>
           <span class="reorder-index">${songNumber}</span>
           <span class="reorder-title">${escapeHtml(s.title)}</span>
           <span class="reorder-meta">${escapeHtml(s.key || '')}</span>
@@ -686,6 +728,52 @@
     if (editingSetlist.items[idx]) editingSetlist.items[idx].label = e.target.value.trim() || 'Grupp';
   });
 
+  // Dra-och-släpp-omordning via pekhändelser (funkar med både mus och touch,
+  // till skillnad från native HTML5 drag-and-drop som är opålitligt på mobil).
+  let dragState = null;
+  const setlistSongsEl = document.getElementById('setlistSongs');
+
+  setlistSongsEl.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    const fromIdx = parseInt(handle.dataset.idx, 10);
+    dragState = { fromIdx, overIdx: fromIdx };
+    handle.closest('.reorder-row').classList.add('dragging');
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+
+  setlistSongsEl.addEventListener('pointermove', (e) => {
+    if (!dragState) return;
+    const rows = [...setlistSongsEl.querySelectorAll('.reorder-row')];
+    rows.forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom'));
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        const idx = parseInt(row.dataset.idx, 10);
+        const topHalf = e.clientY < rect.top + rect.height / 2;
+        row.classList.add(topHalf ? 'drag-over-top' : 'drag-over-bottom');
+        dragState.overIdx = topHalf ? idx : idx + 1;
+        break;
+      }
+    }
+  });
+
+  function endDrag() {
+    if (!dragState) return;
+    setlistSongsEl.querySelectorAll('.reorder-row').forEach(r => r.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom'));
+    const { fromIdx, overIdx } = dragState;
+    dragState = null;
+    if (overIdx === fromIdx || overIdx === fromIdx + 1) return;
+    const items = editingSetlist.items;
+    const [moved] = items.splice(fromIdx, 1);
+    const insertAt = overIdx > fromIdx ? overIdx - 1 : overIdx;
+    items.splice(insertAt, 0, moved);
+    renderSetlistBuilder();
+  }
+  setlistSongsEl.addEventListener('pointerup', endDrag);
+  setlistSongsEl.addEventListener('pointercancel', endDrag);
+
   document.getElementById('setlistEditorBack').addEventListener('click', () => showView('setlists'));
 
   document.getElementById('saveSetlistBtn').addEventListener('click', async () => {
@@ -729,6 +817,49 @@
     if (!songIds.length) { toast('Lägg till minst en låt först', true); return; }
     editingSetlist.songIds = songIds;
     openViewer(songIds[0], { setlist: editingSetlist, index: 0 });
+  });
+
+  document.getElementById('printSetlistBtn').addEventListener('click', async () => {
+    const items = editingSetlist.items;
+    const songIds = deriveSongIds(items);
+    if (!songIds.length) { toast('Lägg till minst en låt först', true); return; }
+    try {
+      const fullSongs = {};
+      for (const id of songIds) fullSongs[id] = await Songs.get(id);
+      let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(editingSetlist.name || 'Setlista')}</title>
+        <style>
+          body{font-family:Georgia,'Times New Roman',serif;max-width:720px;margin:40px auto;color:#161207;}
+          h1{margin-bottom:2px;} .meta{color:#666;margin-bottom:24px;}
+          h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:34px;page-break-after:avoid;}
+          .group{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#a06a1f;margin-top:30px;border-top:1px solid #eee;padding-top:10px;}
+          pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:13.5px;line-height:1.5;}
+          .songmeta{color:#666;font-size:13px;margin-bottom:8px;}
+          @media print { .group, h2 { page-break-inside: avoid; } }
+        </style></head><body>`;
+      html += `<h1>${escapeHtml(editingSetlist.name || 'Setlista')}</h1>`;
+      html += `<div class="meta">${[editingSetlist.venue, editingSetlist.date].filter(Boolean).map(escapeHtml).join(' · ')}</div>`;
+      let n = 0;
+      for (const item of items) {
+        if (item.kind === 'group') {
+          html += `<div class="group">${escapeHtml(item.label)}</div>`;
+        } else {
+          const s = fullSongs[item.songId];
+          if (!s) continue;
+          n++;
+          html += `<h2>${n}. ${escapeHtml(s.title)}</h2>`;
+          const metaBits = [s.key, s.capo && ('Kapo ' + s.capo), s.tempo && (s.tempo + ' bpm')].filter(Boolean);
+          if (metaBits.length) html += `<div class="songmeta">${escapeHtml(metaBits.join(' · '))}</div>`;
+          html += `<pre>${escapeHtml(s.text || '')}</pre>`;
+        }
+      }
+      html += `</body></html>`;
+      const win = window.open('', '_blank');
+      if (!win) { toast('Popup blockerad - tillåt popup-fönster för att skriva ut', true); return; }
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 300);
+    } catch (e) { toast(e.message, true); }
   });
 
   // ---------- Viewer / scenläge ----------
@@ -840,34 +971,112 @@
 
   // Autoscroll
   let scrollRAF = null;
+  let scrollEndTimer = null;
+  let scrollEndCountdownInterval = null;
+
+  function loadScrollSettings() {
+    try {
+      const speed = localStorage.getItem('songbook-scroll-speed');
+      if (speed) state.viewer.scrollSpeed = parseInt(speed, 10) || 4;
+      document.getElementById('scrollEndBehavior').value = localStorage.getItem('songbook-scroll-end-behavior') || 'stay';
+      document.getElementById('scrollEndDelay').value = localStorage.getItem('songbook-scroll-end-delay') || '8';
+    } catch (_) {}
+    document.getElementById('scrollSpeedVal').textContent = state.viewer.scrollSpeed;
+  }
+
   function stopAutoscroll() {
     state.viewer.scrolling = false;
-    document.getElementById('toggleScroll').textContent = 'Av';
+    document.getElementById('toggleScroll').textContent = 'Pausad';
     if (scrollRAF) cancelAnimationFrame(scrollRAF);
     scrollRAF = null;
+    cancelScrollEndCountdown();
   }
+
   function startAutoscroll() {
     state.viewer.scrolling = true;
-    document.getElementById('toggleScroll').textContent = 'På';
+    document.getElementById('toggleScroll').textContent = 'Rullar';
+    document.getElementById('scrollEndBanner').hidden = true;
     const container = document.getElementById('songBody');
     let last = performance.now();
     function tick(now) {
       if (!state.viewer.scrolling) return;
       const dt = now - last;
       last = now;
-      const pxPerSec = state.viewer.scrollSpeed * 8;
+      const pxPerSec = state.viewer.scrollSpeed * 4;
       container.scrollTop += pxPerSec * (dt / 1000);
+      const atBottom = container.scrollTop >= container.scrollHeight - container.clientHeight - 2;
+      if (atBottom) {
+        stopAutoscroll();
+        handleScrollEnd();
+        return;
+      }
       scrollRAF = requestAnimationFrame(tick);
     }
     scrollRAF = requestAnimationFrame(tick);
     requestWakeLock();
   }
+
+  function cancelScrollEndCountdown() {
+    if (scrollEndTimer) clearTimeout(scrollEndTimer);
+    if (scrollEndCountdownInterval) clearInterval(scrollEndCountdownInterval);
+    scrollEndTimer = null;
+    scrollEndCountdownInterval = null;
+    document.getElementById('scrollEndBanner').hidden = true;
+  }
+
+  function handleScrollEnd() {
+    const behavior = document.getElementById('scrollEndBehavior').value;
+    if (behavior === 'top') {
+      document.getElementById('songBody').scrollTop = 0;
+      return;
+    }
+    if (behavior === 'next' && state.viewer.setlistContext) {
+      const ctx = state.viewer.setlistContext;
+      if (ctx.index >= ctx.setlist.songIds.length - 1) return; // sista låten, inget att gå vidare till
+      let secondsLeft = parseInt(document.getElementById('scrollEndDelay').value, 10) || 8;
+      const banner = document.getElementById('scrollEndBanner');
+      const text = document.getElementById('scrollEndText');
+      banner.hidden = false;
+      text.textContent = `Nästa låt om ${secondsLeft}s…`;
+      scrollEndCountdownInterval = setInterval(() => {
+        secondsLeft--;
+        if (secondsLeft <= 0) { cancelScrollEndCountdown(); return; }
+        text.textContent = `Nästa låt om ${secondsLeft}s…`;
+      }, 1000);
+      scrollEndTimer = setTimeout(() => {
+        cancelScrollEndCountdown();
+        stepSetlist(1);
+      }, secondsLeft * 1000);
+    }
+    // 'stay' - gör inget, låten stannar kvar i botten
+  }
+
+  document.getElementById('scrollEndCancel').addEventListener('click', cancelScrollEndCountdown);
+
   document.getElementById('toggleScroll').addEventListener('click', () => {
     if (state.viewer.scrolling) stopAutoscroll(); else startAutoscroll();
   });
-  document.getElementById('scrollSpeed').addEventListener('input', (e) => {
-    state.viewer.scrollSpeed = parseInt(e.target.value, 10);
+
+  function setScrollSpeed(val) {
+    state.viewer.scrollSpeed = Math.max(1, Math.min(20, val));
+    document.getElementById('scrollSpeedVal').textContent = state.viewer.scrollSpeed;
+    try { localStorage.setItem('songbook-scroll-speed', state.viewer.scrollSpeed); } catch (_) {}
+  }
+  document.getElementById('scrollSpeedUp').addEventListener('click', () => setScrollSpeed(state.viewer.scrollSpeed + 1));
+  document.getElementById('scrollSpeedDown').addEventListener('click', () => setScrollSpeed(state.viewer.scrollSpeed - 1));
+
+  document.getElementById('scrollSettingsBtn').addEventListener('click', () => {
+    const box = document.getElementById('scrollSettingsBox');
+    box.hidden = !box.hidden;
   });
+  document.getElementById('scrollEndBehavior').addEventListener('change', (e) => {
+    try { localStorage.setItem('songbook-scroll-end-behavior', e.target.value); } catch (_) {}
+  });
+  document.getElementById('scrollEndDelay').addEventListener('change', (e) => {
+    try { localStorage.setItem('songbook-scroll-end-delay', e.target.value); } catch (_) {}
+  });
+
+  loadScrollSettings();
 
   // Wake Lock (håll skärmen tänd på scen)
   async function requestWakeLock() {
@@ -899,6 +1108,43 @@
   document.getElementById('themeToggle').addEventListener('click', () => {
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     applyTheme(isLight ? 'dark' : 'light');
+  });
+
+  // ---------- Info / IP / backup ----------
+
+  document.getElementById('infoToggle').addEventListener('click', async () => {
+    document.getElementById('infoModal').hidden = false;
+    const box = document.getElementById('infoIpBox');
+    box.textContent = 'Hämtar IP-adress…';
+    try {
+      const info = await api('/api/info');
+      if (info.ips && info.ips.length) {
+        box.innerHTML = info.ips.map(ip => `<div>Från datorn: <strong>http://${ip}:${info.port}</strong></div>`).join('') +
+          `<div style="margin-top:4px;">På telefonen: <strong>http://localhost:${info.port}</strong></div>`;
+      } else {
+        box.textContent = 'Ingen wifi-IP hittades - kontrollera att telefonen är ansluten till nätverket.';
+      }
+    } catch (e) {
+      box.textContent = 'Kunde inte hämta IP just nu.';
+    }
+  });
+  document.getElementById('closeInfo').addEventListener('click', () => { document.getElementById('infoModal').hidden = true; });
+
+  document.getElementById('downloadBackupBtn').addEventListener('click', async () => {
+    try {
+      const backup = await api('/api/backup');
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `lyricsmaster-backup-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast('Backup nedladdad');
+    } catch (e) { toast(e.message, true); }
   });
 
   // ---------- Öva utantill (inlärningsläge) ----------
@@ -1115,13 +1361,57 @@
   const RHYME_TYPE_LABEL = { simple: 'Enkelt rim', multisyllable: 'Flerstavigt', phrase: 'Frasrim', assonance: 'Assonans', alliteration: 'Allitteration' };
 
   async function loadRhymes() {
-    try { state.rhymes = await Rhymes.list(); renderRhymeList(); } catch (e) { toast(e.message, true); }
+    try { state.rhymes = await Rhymes.list(); renderRhymeList(); renderRhymeLookup(); } catch (e) { toast(e.message, true); }
   }
 
-  function openRhymePanel() { document.getElementById('rhymePanel').hidden = false; loadRhymes(); }
+  function openRhymePanel() {
+    document.getElementById('rhymePanel').hidden = false;
+    setRhymeMode('search');
+    loadRhymes();
+  }
   function closeRhymePanel() { document.getElementById('rhymePanel').hidden = true; }
   document.getElementById('rhymeToggle').addEventListener('click', openRhymePanel);
   document.getElementById('closeRhymePanel').addEventListener('click', closeRhymePanel);
+
+  function setRhymeMode(mode) {
+    document.getElementById('rhymeSearchPane').hidden = mode !== 'search';
+    document.getElementById('rhymeEditPane').hidden = mode !== 'edit';
+    document.getElementById('rhymeModeSearch').classList.toggle('active', mode === 'search');
+    document.getElementById('rhymeModeEdit').classList.toggle('active', mode === 'edit');
+  }
+  document.getElementById('rhymeModeSearch').addEventListener('click', () => setRhymeMode('search'));
+  document.getElementById('rhymeModeEdit').addEventListener('click', () => setRhymeMode('edit'));
+
+  function renderRhymeLookup() {
+    const q = document.getElementById('rhymeLookupInput').value.trim().toLowerCase();
+    const box = document.getElementById('rhymeLookupResults');
+    if (!q) { box.innerHTML = ''; return; }
+    const matches = state.rhymes.filter(r => r.words.some(w => w.toLowerCase().includes(q)));
+    if (!matches.length) { box.innerHTML = '<p class="empty-state small">Inga rim hittade.</p>'; return; }
+    box.innerHTML = matches.map(r => {
+      const words = r.words.map(w => w.toLowerCase().includes(q)
+        ? `<span class="matched-word">${escapeHtml(w)}</span>`
+        : escapeHtml(w));
+      return `<div class="rhyme-lookup-item">
+        <div class="other-words">${words.join(' / ')}</div>
+        <div class="rhyme-item-meta"><span class="lang-badge lang-${r.language}">${RHYME_LANG_LABEL[r.language] || r.language}</span> · ${RHYME_TYPE_LABEL[r.type] || r.type}${r.syllables ? ' · ' + r.syllables + ' stavelser' : ''}</div>
+        ${r.phrases && r.phrases.length ? `<div class="rhyme-item-phrases">${escapeHtml(r.phrases.join(', '))}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('rhymeLookupInput').addEventListener('input', renderRhymeLookup);
+
+  document.getElementById('exportRhymesBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state.rhymes, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rimlexikon-backup.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
 
   function resetRhymeForm() {
     editingRhymeId = null;
@@ -1130,6 +1420,7 @@
     document.getElementById('rhymeLanguage').value = 'sv';
     document.getElementById('rhymeType').value = 'simple';
     document.getElementById('rhymePhrases').value = '';
+    document.getElementById('rhymeSyllables').value = '';
     document.getElementById('rhymeTags').value = '';
     document.getElementById('rhymeNotes').value = '';
     document.getElementById('rhymeFavorite').checked = false;
@@ -1181,7 +1472,7 @@
             <button class="rhyme-star ${r.favorite ? 'is-favorite' : ''}" data-action="toggle-fav" type="button" title="Favorit">${r.favorite ? '★' : '☆'}</button>
             <div class="rhyme-item-main">
               <div class="rhyme-item-words">${escapeHtml(r.words.join(' / '))}</div>
-              <div class="rhyme-item-meta"><span class="lang-badge lang-${r.language}">${RHYME_LANG_LABEL[r.language] || r.language}</span> · ${RHYME_TYPE_LABEL[r.type] || r.type}</div>
+              <div class="rhyme-item-meta"><span class="lang-badge lang-${r.language}">${RHYME_LANG_LABEL[r.language] || r.language}</span> · ${RHYME_TYPE_LABEL[r.type] || r.type}${r.syllables ? ' · ' + r.syllables + ' stavelser' : ''}</div>
               ${r.phrases && r.phrases.length ? `<div class="rhyme-item-phrases">${escapeHtml(r.phrases.join(', '))}</div>` : ''}
               ${tagChips ? `<div class="rhyme-item-tags">${tagChips}</div>` : ''}
               ${r.notes ? `<div class="rhyme-item-notes">${escapeHtml(r.notes)}</div>` : ''}
@@ -1213,6 +1504,7 @@
       language: document.getElementById('rhymeLanguage').value,
       type: document.getElementById('rhymeType').value,
       phrases: document.getElementById('rhymePhrases').value.split(',').map(p => p.trim()).filter(Boolean),
+      syllables: document.getElementById('rhymeSyllables').value ? parseInt(document.getElementById('rhymeSyllables').value, 10) : null,
       tags: document.getElementById('rhymeTags').value.split(',').map(t => t.trim()).filter(Boolean),
       notes: document.getElementById('rhymeNotes').value.trim(),
       favorite: document.getElementById('rhymeFavorite').checked,
@@ -1246,6 +1538,7 @@
       document.getElementById('rhymeLanguage').value = rhyme.language;
       document.getElementById('rhymeType').value = rhyme.type;
       document.getElementById('rhymePhrases').value = (rhyme.phrases || []).join(', ');
+      document.getElementById('rhymeSyllables').value = rhyme.syllables || '';
       document.getElementById('rhymeTags').value = (rhyme.tags || []).join(', ');
       document.getElementById('rhymeNotes').value = rhyme.notes || '';
       document.getElementById('rhymeFavorite').checked = !!rhyme.favorite;

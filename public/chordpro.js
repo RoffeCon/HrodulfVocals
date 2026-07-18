@@ -78,6 +78,7 @@
     const sections = [];
     let current = { label: '', type: 'other', lines: [] };
     let started = false;
+    let blankStreak = 0;
 
     for (const raw of rawLines) {
       if (/^##\s*/.test(raw)) {
@@ -85,21 +86,26 @@
         const label = raw.replace(/^##\s*/, '').trim();
         current = { label, type: detectType(label), lines: [] };
         started = true;
+        blankStreak = 0;
         continue;
       }
       if (!started) started = true;
       if (/^>\s?/.test(raw)) {
         current.lines.push({ kind: 'comment', text: raw.replace(/^>\s?/, '') });
+        blankStreak = 0;
       } else if (raw.trim() === '') {
         current.lines.push({ kind: 'blank' });
-        // Refräng/stick ska inte "sitta i" ända till nästa rubrik - de stänger av sig
-        // automatiskt vid nästa tomrad. Vers/övrigt fortsätter som förut (vanligast med
-        // flerstrofiga verser separerade av tomrader som ändå ska höra ihop).
-        if (current.type === 'chorus' || current.type === 'bridge') {
+        blankStreak++;
+        // En enstaka tomrad är bara en läsbarhetspaus inom avsnittet (t.ex. dela upp
+        // en lång refräng i två stycken). Två tomrader i rad avslutar refräng/stick-
+        // färgningen, så du slipper lägga till en tom "##" bara för att nollställa.
+        if (blankStreak >= 2 && (current.type === 'chorus' || current.type === 'bridge')) {
           sections.push(current);
           current = { label: '', type: 'other', lines: [] };
+          blankStreak = 0;
         }
       } else {
+        blankStreak = 0;
         const { lyric, chords } = splitChordLine(raw);
         current.lines.push({ kind: 'lyric', lyric, chords });
       }

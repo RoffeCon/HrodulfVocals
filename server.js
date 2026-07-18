@@ -35,8 +35,8 @@ wss.on('connection', (ws) => {
 
 app.get('/api/songs', (req, res) => {
   const list = songs.all()
-    .map(({ id, title, composer, key, tempo, capo, tags, notes, updatedAt, groupId, versionLabel }) =>
-      ({ id, title, composer, key, tempo, capo, tags, notes, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
+    .map(({ id, title, composer, artist, key, tempo, capo, tags, notes, updatedAt, groupId, versionLabel }) =>
+      ({ id, title, composer, artist, key, tempo, capo, tags, notes, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
     .sort((a, b) => a.title.localeCompare(b.title, 'sv'));
   res.json(list);
 });
@@ -58,6 +58,7 @@ app.post('/api/songs', async (req, res) => {
     id,
     title: body.title.trim(),
     composer: body.composer || '',
+    artist: body.artist || '',
     key: body.key || '',
     capo: body.capo || '',
     tempo: body.tempo || '',
@@ -91,6 +92,7 @@ app.post('/api/songs/import', async (req, res) => {
       id,
       title,
       composer: raw.composer || '',
+      artist: raw.artist || '',
       key: raw.key || '',
       capo: raw.capo || '',
       tempo: raw.tempo || '',
@@ -120,6 +122,7 @@ app.put('/api/songs/:id', async (req, res) => {
   const patch = {
     ...('title' in body ? { title: body.title.trim() } : {}),
     ...('composer' in body ? { composer: body.composer } : {}),
+    ...('artist' in body ? { artist: body.artist } : {}),
     ...('key' in body ? { key: body.key } : {}),
     ...('capo' in body ? { capo: body.capo } : {}),
     ...('tempo' in body ? { tempo: body.tempo } : {}),
@@ -289,6 +292,7 @@ app.post('/api/rhymes', async (req, res) => {
     words,
     phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [],
     tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [],
+    syllables: body.syllables ? parseInt(body.syllables, 10) || null : null,
     favorite: !!body.favorite,
     notes: body.notes || '',
     songUsage: Array.isArray(body.songUsage) ? body.songUsage : [],
@@ -319,6 +323,7 @@ app.post('/api/rhymes/import', async (req, res) => {
       words,
       phrases: Array.isArray(raw.phrases) ? raw.phrases.map(p => String(p).trim()).filter(Boolean) : [],
       tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : [],
+      syllables: raw.syllables ? parseInt(raw.syllables, 10) || null : null,
       favorite: !!raw.favorite,
       notes: raw.notes || '',
       songUsage: [],
@@ -342,6 +347,7 @@ app.put('/api/rhymes/:id', async (req, res) => {
     ...('words' in body ? { words: Array.isArray(body.words) ? body.words.map(w => String(w).trim()).filter(Boolean) : existing.words } : {}),
     ...('phrases' in body ? { phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [] } : {}),
     ...('tags' in body ? { tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [] } : {}),
+    ...('syllables' in body ? { syllables: body.syllables ? parseInt(body.syllables, 10) || null : null } : {}),
     ...('favorite' in body ? { favorite: !!body.favorite } : {}),
     ...('notes' in body ? { notes: body.notes } : {}),
     ...('songUsage' in body ? { songUsage: Array.isArray(body.songUsage) ? body.songUsage : [] } : {}),
@@ -401,7 +407,18 @@ app.get('/api/search/proximity', (req, res) => {
 });
 
 app.get('/api/info', (req, res) => {
-  res.json({ name: 'LyricsMaster', version: '1.0.0', time: new Date().toISOString() });
+  res.json({ name: 'LyricsMaster', version: '1.0.0', time: new Date().toISOString(), port: PORT, ips: localIPs() });
+});
+
+// Fullständig backup av all data - för nedladdning i klienten.
+app.get('/api/backup', (req, res) => {
+  res.json({
+    exportedAt: new Date().toISOString(),
+    app: 'LyricsMaster',
+    songs: songs.all(),
+    setlists: setlists.all(),
+    rhymes: rhymes.all(),
+  });
 });
 
 function localIPs() {
