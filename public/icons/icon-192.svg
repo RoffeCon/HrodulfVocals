@@ -1,5 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
   <rect width="192" height="192" rx="36" fill="#14110d"/>
-  <circle cx="96" cy="96" r="72" fill="none" stroke="#382f22" stroke-width="2"/>
-  <text x="96" y="128" font-family="Georgia, 'Times New Roman', serif" font-size="104" text-anchor="middle" fill="#e8a33d">&#9834;</text>
+  <!-- notblad -->
+  <line x1="26" y1="66" x2="166" y2="66" stroke="#382f22" stroke-width="2"/>
+  <line x1="26" y1="84" x2="166" y2="84" stroke="#382f22" stroke-width="2"/>
+  <line x1="26" y1="102" x2="166" y2="102" stroke="#382f22" stroke-width="2"/>
+  <line x1="26" y1="120" x2="166" y2="120" stroke="#382f22" stroke-width="2"/>
+  <!-- L och M, tjocka rundade streck så de läser som noter på bladet -->
+  <path d="M 50 54 L 50 132 L 84 132" fill="none" stroke="#e8a33d" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 106 132 L 106 54 L 130 98 L 154 54 L 154 132" fill="none" stroke="#e8a33d" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

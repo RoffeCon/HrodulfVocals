@@ -1,6 +1,6 @@
 {
-  "name": "Hrodulfus Songbook",
-  "short_name": "Songbook",
+  "name": "LyricsMaster",
+  "short_name": "LyricsMaster",
   "description": "Personlig sångtext- och setlisteapp med egen lokal server.",
   "start_url": "/",
   "scope": "/",

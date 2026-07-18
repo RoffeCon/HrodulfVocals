@@ -1,5 +1,5 @@
 {
-  "name": "hrodulfus-songbook",
+  "name": "lyricsmaster",
   "version": "1.0.0",
   "description": "Personlig sångtextapp med lokal server – körs på telefonen via Termux, nås från valfri enhet på samma wifi.",
   "private": true,

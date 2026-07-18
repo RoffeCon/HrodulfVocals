@@ -1,4 +1,4 @@
-# Hrodulfus Songbook
+# LyricsMaster
 
 En egen, fri sångtext- och setlisteapp. Ingen molntjänst, inget konto, inget App Store-godkännande
 att vänta på — telefonen är servern, och du äger all kod och all data. *Memento Ridere.*
@@ -41,13 +41,13 @@ att vänta på — telefonen är servern, och du äger all kod och all data. *Me
    ```
    Du bör se något i stil med:
    ```
-   ♪ Hrodulfus Songbook körs nu ♪
+   ♪ LyricsMaster körs nu ♪
    På telefonen:      http://localhost:8420
    Från datorn (wifi): http://192.168.X.X:8420
    ```
 5. Öppna **Chrome** på telefonen och gå till `http://localhost:8420`. Tryck på menyn (⋮) →
    **"Lägg till på startskärmen"** / **"Installera app"**. Nu har du en app-ikon som öppnar
-   Songbook i eget fönster, utan adressfält.
+   LyricsMaster i eget fönster, utan adressfält.
 
 ### Håll servern igång i bakgrunden
 
@@ -66,6 +66,29 @@ Termux stänger lätt ner processer när appen inte är i fokus. Gör så här:
   # Ctrl+B, sedan D för att koppla loss (servern fortsätter köra)
   # tmux attach -t songbook för att komma tillbaka
   ```
+
+## Uppdatera appen (VIKTIGT - läs det här)
+
+**`pkg update && pkg upgrade` uppdaterar INTE appen.** Det uppdaterar bara Termux egna
+systemprogram (node, python, bash osv), helt orelaterat till din kod. Det du vill ha är
+`git pull`, som hämtar dina egna filändringar från GitHub.
+
+Enklast: kör uppdateringsskriptet, som gör allt i ett svep (hämtar kod, installerar ev. nya
+beroenden, startar servern):
+```
+cd ~/HrodulfVocals
+bash update.sh
+```
+
+Eller för hand:
+```
+cd ~/HrodulfVocals
+git pull
+npm start
+```
+
+Om du redan har servern igång i en `tmux`-session måste du avsluta den gamla processen först
+(gå till sessionen med `tmux attach -t songbook`, tryck `Ctrl+C`, kör sedan `bash update.sh`).
 
 ## Använda från datorn
 

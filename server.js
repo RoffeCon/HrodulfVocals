@@ -363,7 +363,7 @@ app.get('/api/search/proximity', (req, res) => {
 });
 
 app.get('/api/info', (req, res) => {
-  res.json({ name: 'Hrodulfus Songbook', version: '1.0.0', time: new Date().toISOString() });
+  res.json({ name: 'LyricsMaster', version: '1.0.0', time: new Date().toISOString() });
 });
 
 function localIPs() {
@@ -379,7 +379,7 @@ function localIPs() {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('');
-  console.log('  ♪ Hrodulfus Songbook körs nu ♪');
+  console.log('  ♪ LyricsMaster körs nu ♪');
   console.log('  ---------------------------------');
   console.log(`  På telefonen:      http://localhost:${PORT}`);
   const ips = localIPs();

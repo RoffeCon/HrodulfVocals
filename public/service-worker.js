@@ -1,4 +1,4 @@
-const CACHE = 'songbook-shell-v5';
+const CACHE = 'lyricsmaster-shell-v1';
 const SHELL = [
   '/',
   '/index.html',
