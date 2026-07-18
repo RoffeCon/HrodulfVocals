@@ -92,6 +92,13 @@
         current.lines.push({ kind: 'comment', text: raw.replace(/^>\s?/, '') });
       } else if (raw.trim() === '') {
         current.lines.push({ kind: 'blank' });
+        // Refräng/stick ska inte "sitta i" ända till nästa rubrik - de stänger av sig
+        // automatiskt vid nästa tomrad. Vers/övrigt fortsätter som förut (vanligast med
+        // flerstrofiga verser separerade av tomrader som ändå ska höra ihop).
+        if (current.type === 'chorus' || current.type === 'bridge') {
+          sections.push(current);
+          current = { label: '', type: 'other', lines: [] };
+        }
       } else {
         const { lyric, chords } = splitChordLine(raw);
         current.lines.push({ kind: 'lyric', lyric, chords });

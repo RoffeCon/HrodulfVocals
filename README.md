@@ -164,6 +164,31 @@ scenläget, så du kan hoppa mellan dem direkt.
 - **Suno-format** — avsnittsrubriker omvandlade till `[Verse]`, `[Chorus]` osv. som Suno
   förväntar sig, ackord borttagna.
 
+## Biblioteket: mer kontroll i listläget
+
+- **Snabbtitel** - skriv bara en titel i fältet ovanför listan och tryck Enter. Låten skapas
+  direkt utan att öppna hela editorn; fyll i text och detaljer när du har tid.
+- **Döp om / Radera** direkt på varje rad - ingen omväg via editorn krävs.
+- **Visa anteckningar i listan** - kryssrutan ovanför listan visar (eller döljer) varje låts
+  anteckningsfält som en rad under titeln.
+- **Versioner fälls ihop automatiskt** - har en låt flera versioner visas bara en rad med en
+  liten pil (▸) och antal versioner. Klicka pilen för att fälla ut och se/öppna varje version.
+
+## Importera låtar
+
+**Importera**-knappen i biblioteket öppnar ett textfält där du klistrar in text - oavsett om
+den kommer från Word, Anteckningar, eller något annat, eftersom det bara är vanlig text du
+klistrar in. Ska du importera flera låtar samtidigt, separera varje låt med en egen rad som
+bara innehåller `---`. Första raden i varje block blir titeln, resten blir låtens text. En
+förhandsvisning visar hur många låtar som hittas innan du bekräftar.
+
+## Gruppera setlistan
+
+I setlist-byggaren finns **+ Grupprubrik**, som lägger till en rubrikrad du kan döpa fritt
+(t.ex. "Drop D" eller "Akustiskt set"). Rubriker går att flytta och ta bort precis som låtar
+med samma ▲▼/✕-knappar, och gör setlistan lättare att läsa för resten av bandet - särskilt
+praktiskt inför en framtida skärm i replokalen.
+
 ## Vidareutveckling (roadmap, egen session)
 
 En större modul för utrustnings- och gigförberedelse är på gång: registrera vilken utrustning
@@ -175,6 +200,40 @@ Det är en egen datamodell och ett eget gränssnitt, så det byggs som ett separ
 En annan idé för framtiden: casta aktuell setlista till en skärm i replokalen (t.ex. via en
 Raspberry Pi), busshållplats-stil — "Nu spelar: Barren World (Drop D) · Nästa: Water Under My Bed"
 — så hela bandet ser var man är i låtlistan utan att titta på telefonen.
+
+## Rimlexikon
+
+Pennikonen (✎) i toppfältet öppnar ett sidofält du kan ha uppe samtidigt som du skriver i
+editorn. Där kan du:
+
+- Lägga till rim som ordgrupper (kommaseparerat), taggade med **språk** (svenska/engelska/
+  franska/annat) och **typ** (enkelt rim, flerstavigt, frasrim, assonans, allitteration) - typen
+  fungerar också som filter i listan.
+- Koppla ett rim till låtar du använt det i - antingen manuellt via **+ Koppla nuvarande låt**
+  när du har en låt öppen i editorn, eller radera kopplingen igen med ✕ på chippen.
+- **Sök rim i låtar** - skriv in två ord, appen letar igenom alla låtars sångtext (ackord och
+  rubriker räknas inte) och visar var orden förekommer inom valt radavstånd (standard 4 rader) -
+  det fångar både rim inom en vers och rim mellan t.ex. sista raden i vers 1 och vers 2.
+
+## Autostart efter omstart av telefonen
+
+Utan extra steg dör servern om telefonen startas om, eftersom Termux inte startar processer
+automatiskt. Så här fixar du det:
+
+1. Installera **Termux:Boot** från F-Droid: https://f-droid.org/packages/com.termux.boot/
+   (en separat app, inte samma som Termux självt - Termux måste redan vara installerat).
+2. Öppna Termux:Boot en gång (det räcker att öppna den, ingen inställning behövs) - det skapar
+   mappen `~/.termux/boot/`.
+3. I Termux:
+   ```
+   mkdir -p ~/.termux/boot
+   cp ~/HrodulfVocals/termux-boot-start-songbook.sh ~/.termux/boot/start-songbook.sh
+   chmod +x ~/.termux/boot/start-songbook.sh
+   ```
+4. Starta om telefonen. Servern ska starta automatiskt (kolla `~/songbook-boot.log` i Termux om
+   den inte gör det).
+
+Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
 ## Backup
 

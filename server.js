@@ -4,12 +4,14 @@ const os = require('os');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const { JsonStore, makeId } = require('./lib/store');
+const { extractLyricLines } = require('./lib/lyricLines');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8420;
 const DATA_DIR = path.join(__dirname, 'data');
 
 const songs = new JsonStore('songs.json', DATA_DIR);
 const setlists = new JsonStore('setlists.json', DATA_DIR);
+const rhymes = new JsonStore('rhymes.json', DATA_DIR);
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -33,8 +35,8 @@ wss.on('connection', (ws) => {
 
 app.get('/api/songs', (req, res) => {
   const list = songs.all()
-    .map(({ id, title, composer, key, tempo, capo, tags, updatedAt, groupId, versionLabel }) =>
-      ({ id, title, composer, key, tempo, capo, tags, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
+    .map(({ id, title, composer, key, tempo, capo, tags, notes, updatedAt, groupId, versionLabel }) =>
+      ({ id, title, composer, key, tempo, capo, tags, notes, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
     .sort((a, b) => a.title.localeCompare(b.title, 'sv'));
   res.json(list);
 });
@@ -71,6 +73,41 @@ app.post('/api/songs', async (req, res) => {
   await songs.insert(song);
   broadcast({ type: 'songs-changed', reason: 'created', id: song.id });
   res.status(201).json(song);
+});
+
+// Massimport: skapar flera låtar på en gång från text som klistrats in och delats
+// upp i klienten. Varje objekt behöver minst en titel.
+app.post('/api/songs/import', async (req, res) => {
+  const body = req.body || {};
+  const items = Array.isArray(body.songs) ? body.songs : [];
+  if (!items.length) return res.status(400).json({ error: 'Inga låtar att importera' });
+  const now = new Date().toISOString();
+  const created = [];
+  for (const raw of items) {
+    const title = (raw.title || '').trim();
+    if (!title) continue;
+    const id = makeId();
+    const song = {
+      id,
+      title,
+      composer: raw.composer || '',
+      key: raw.key || '',
+      capo: raw.capo || '',
+      tempo: raw.tempo || '',
+      timeSignature: raw.timeSignature || '',
+      tags: [],
+      notes: raw.notes || '',
+      text: raw.text || '',
+      groupId: id,
+      versionLabel: 'V1',
+      createdAt: now,
+      updatedAt: now,
+    };
+    await songs.insert(song);
+    created.push(song);
+  }
+  if (created.length) broadcast({ type: 'songs-changed', reason: 'imported' });
+  res.status(201).json({ created: created.length, songs: created });
 });
 
 app.put('/api/songs/:id', async (req, res) => {
@@ -132,8 +169,10 @@ app.delete('/api/songs/:id', async (req, res) => {
   if (!ok) return res.status(404).json({ error: 'Låten hittades inte' });
   // Städa bort låten ur ev. setlistor också
   for (const sl of setlists.all()) {
-    if (sl.songIds.includes(req.params.id)) {
-      await setlists.update(sl.id, { songIds: sl.songIds.filter(x => x !== req.params.id) });
+    const items = normalizeItems(sl);
+    if (items.some(i => i.kind === 'song' && i.songId === req.params.id)) {
+      const newItems = items.filter(i => !(i.kind === 'song' && i.songId === req.params.id));
+      await setlists.update(sl.id, { items: newItems, songIds: songIdsFromItems(newItems) });
     }
   }
   broadcast({ type: 'songs-changed', reason: 'deleted', id: req.params.id });
@@ -142,16 +181,43 @@ app.delete('/api/songs/:id', async (req, res) => {
 });
 
 // ---------- Setlists ----------
+//
+// En setlista är en sekvens av "items": antingen en låt ({kind:'song', songId})
+// eller en grupprubrik ({kind:'group', label}) - t.ex. för att dela upp kvällens
+// låtar efter gitarrstämning. Äldre setlistor sparade bara en platt songIds-lista;
+// normalizeItems() gör om dem till samma form vid inläsning så inget går sönder.
+
+function normalizeItems(sl) {
+  if (Array.isArray(sl.items)) return sl.items;
+  return (sl.songIds || []).map(id => ({ kind: 'song', songId: id }));
+}
+function songIdsFromItems(items) {
+  return items.filter(i => i.kind === 'song').map(i => i.songId);
+}
+function sanitizeItems(rawItems) {
+  if (!Array.isArray(rawItems)) return [];
+  return rawItems.map(it => {
+    if (it && it.kind === 'group') return { kind: 'group', label: String(it.label || '').trim() };
+    if (it && it.kind === 'song' && it.songId) return { kind: 'song', songId: it.songId };
+    return null;
+  }).filter(Boolean);
+}
+function withNormalizedItems(sl) {
+  const items = normalizeItems(sl);
+  return { ...sl, items, songIds: songIdsFromItems(items) };
+}
 
 app.get('/api/setlists', (req, res) => {
-  const list = setlists.all().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  const list = setlists.all().slice()
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+    .map(withNormalizedItems);
   res.json(list);
 });
 
 app.get('/api/setlists/:id', (req, res) => {
   const sl = setlists.get(req.params.id);
   if (!sl) return res.status(404).json({ error: 'Setlistan hittades inte' });
-  res.json(sl);
+  res.json(withNormalizedItems(sl));
 });
 
 app.post('/api/setlists', async (req, res) => {
@@ -160,13 +226,15 @@ app.post('/api/setlists', async (req, res) => {
   if (!body.name || !body.name.trim()) {
     return res.status(400).json({ error: 'Namn krävs' });
   }
+  const items = sanitizeItems(body.items) || [];
   const sl = {
     id: makeId(),
     name: body.name.trim(),
     venue: body.venue || '',
     date: body.date || '',
     notes: body.notes || '',
-    songIds: Array.isArray(body.songIds) ? body.songIds : [],
+    items,
+    songIds: songIdsFromItems(items),
     createdAt: now,
     updatedAt: now,
   };
@@ -179,17 +247,18 @@ app.put('/api/setlists/:id', async (req, res) => {
   const existing = setlists.get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Setlistan hittades inte' });
   const body = req.body || {};
+  const itemsPatch = 'items' in body ? { items: sanitizeItems(body.items), songIds: songIdsFromItems(sanitizeItems(body.items)) } : {};
   const patch = {
     ...('name' in body && body.name.trim() ? { name: body.name.trim() } : {}),
     ...('venue' in body ? { venue: body.venue } : {}),
     ...('date' in body ? { date: body.date } : {}),
     ...('notes' in body ? { notes: body.notes } : {}),
-    ...('songIds' in body ? { songIds: Array.isArray(body.songIds) ? body.songIds : [] } : {}),
+    ...itemsPatch,
     updatedAt: new Date().toISOString(),
   };
   const updated = await setlists.update(req.params.id, patch);
   broadcast({ type: 'setlists-changed', reason: 'updated', id: updated.id });
-  res.json(updated);
+  res.json(withNormalizedItems(updated));
 });
 
 app.delete('/api/setlists/:id', async (req, res) => {
@@ -200,6 +269,98 @@ app.delete('/api/setlists/:id', async (req, res) => {
 });
 
 // ---------- Health / info ----------
+
+// ---------- Rimlexikon ----------
+
+app.get('/api/rhymes', (req, res) => {
+  const list = rhymes.all().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  res.json(list);
+});
+
+app.post('/api/rhymes', async (req, res) => {
+  const body = req.body || {};
+  const words = Array.isArray(body.words) ? body.words.map(w => String(w).trim()).filter(Boolean) : [];
+  if (words.length < 2) return res.status(400).json({ error: 'Minst två ord eller fraser krävs' });
+  const now = new Date().toISOString();
+  const entry = {
+    id: makeId(),
+    language: body.language || 'sv',
+    type: body.type || 'simple',
+    words,
+    notes: body.notes || '',
+    songUsage: Array.isArray(body.songUsage) ? body.songUsage : [],
+    createdAt: now,
+    updatedAt: now,
+  };
+  await rhymes.insert(entry);
+  broadcast({ type: 'rhymes-changed', reason: 'created', id: entry.id });
+  res.status(201).json(entry);
+});
+
+app.put('/api/rhymes/:id', async (req, res) => {
+  const existing = rhymes.get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Rimmet hittades inte' });
+  const body = req.body || {};
+  const patch = {
+    ...('language' in body ? { language: body.language } : {}),
+    ...('type' in body ? { type: body.type } : {}),
+    ...('words' in body ? { words: Array.isArray(body.words) ? body.words.map(w => String(w).trim()).filter(Boolean) : existing.words } : {}),
+    ...('notes' in body ? { notes: body.notes } : {}),
+    ...('songUsage' in body ? { songUsage: Array.isArray(body.songUsage) ? body.songUsage : [] } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+  const updated = await rhymes.update(req.params.id, patch);
+  broadcast({ type: 'rhymes-changed', reason: 'updated', id: updated.id });
+  res.json(updated);
+});
+
+app.delete('/api/rhymes/:id', async (req, res) => {
+  const ok = await rhymes.remove(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Rimmet hittades inte' });
+  broadcast({ type: 'rhymes-changed', reason: 'deleted', id: req.params.id });
+  res.status(204).end();
+});
+
+function normWord(w) {
+  return String(w || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+// Sök efter två ord som förekommer inom ett givet radavstånd i samma låt - täcker
+// både rim inom en vers och rim mellan t.ex. sista raden i vers 1 och vers 2.
+app.get('/api/search/proximity', (req, res) => {
+  const w1 = normWord(req.query.word1);
+  const w2 = normWord(req.query.word2);
+  const radius = Math.max(1, Math.min(20, parseInt(req.query.radius, 10) || 4));
+  if (!w1 || !w2) return res.status(400).json({ error: 'Ange två ord att söka efter' });
+
+  const results = [];
+  for (const song of songs.all()) {
+    const lines = extractLyricLines(song.text);
+    const idx1 = [], idx2 = [];
+    lines.forEach((line, i) => {
+      const words = line.split(/\s+/).map(normWord);
+      if (words.includes(w1)) idx1.push(i);
+      if (words.includes(w2)) idx2.push(i);
+    });
+    if (!idx1.length || !idx2.length) continue;
+    const seen = new Set();
+    const occurrences = [];
+    for (const i of idx1) {
+      for (const j of idx2) {
+        if (i === j && w1 === w2) continue;
+        if (Math.abs(i - j) > radius) continue;
+        const key = [Math.min(i, j), Math.max(i, j)].join('-');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        occurrences.push({ line1: Math.min(i, j), line1Text: lines[Math.min(i, j)], line2: Math.max(i, j), line2Text: lines[Math.max(i, j)], distance: Math.abs(i - j) });
+      }
+    }
+    if (occurrences.length) {
+      results.push({ songId: song.id, title: song.title, versionLabel: song.versionLabel || 'V1', occurrences });
+    }
+  }
+  res.json(results);
+});
 
 app.get('/api/info', (req, res) => {
   res.json({ name: 'Hrodulfus Songbook', version: '1.0.0', time: new Date().toISOString() });

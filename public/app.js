@@ -50,6 +50,12 @@
     update: (id, data) => api('/api/setlists/' + id, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id) => api('/api/setlists/' + id, { method: 'DELETE' }),
   };
+  const Rhymes = {
+    list: () => api('/api/rhymes'),
+    create: (data) => api('/api/rhymes', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id, data) => api('/api/rhymes/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id) => api('/api/rhymes/' + id, { method: 'DELETE' }),
+  };
 
   // ---------- Toast ----------
 
@@ -96,11 +102,15 @@
         if (state.viewer.songId === msg.id) refreshViewerSong();
       } else if (msg.type === 'setlists-changed') {
         loadSetlists();
+      } else if (msg.type === 'rhymes-changed') {
+        loadRhymes();
       }
     };
   }
 
   // ---------- Library ----------
+
+  const libraryExpandedGroups = new Set();
 
   async function loadSongs() {
     try {
@@ -109,40 +119,171 @@
     } catch (e) { toast(e.message, true); }
   }
 
+  function songRowHtml(s, { sub = false, expandable = false, expanded = false, versionCount = 0 } = {}) {
+    const showNotes = document.getElementById('showNotesToggle').checked;
+    const subInfo = [s.composer, s.key, s.tempo && s.tempo + ' bpm'].filter(Boolean).map(escapeHtml).join(' · ');
+    const badge = sub
+      ? `<span class="version-count-badge">${escapeHtml(s.versionLabel || '')}</span>`
+      : (versionCount > 1 ? `<span class="version-count-badge">${versionCount} versioner</span>` : '');
+    return `
+      <li class="song-row${sub ? ' sub-version' : ''}" data-id="${s.id}">
+        ${expandable ? `<button class="version-toggle" data-action="toggle-versions" data-group="${s.groupId}" type="button">${expanded ? '▾' : '▸'}</button>` : ''}
+        <div class="song-row-main" data-action="view">
+          <div class="song-row-title">${escapeHtml(s.title)} ${badge}</div>
+          <div class="song-row-sub">${subInfo}</div>
+          ${showNotes && s.notes ? `<div class="song-row-notes">${escapeHtml(s.notes)}</div>` : ''}
+        </div>
+        <div class="row-actions">
+          <button class="btn btn-tiny" data-action="rename" type="button">Döp om</button>
+          <button class="btn btn-tiny" data-action="edit" type="button">Redigera</button>
+          <button class="btn btn-tiny btn-danger" data-action="delete" type="button">🗑</button>
+        </div>
+      </li>`;
+  }
+
   function renderLibrary() {
     const q = document.getElementById('songSearch').value.trim().toLowerCase();
-    const list = document.getElementById('songList');
     const filtered = state.songs.filter(s => {
       if (!q) return true;
       const hay = [s.title, s.composer, ...(s.tags || [])].join(' ').toLowerCase();
       return hay.includes(q);
     });
     document.getElementById('libraryEmpty').hidden = state.songs.length > 0;
-    list.innerHTML = filtered.map(s => `
-      <li class="song-row" data-id="${s.id}">
-        <div class="song-row-main" data-action="view">
-          <div class="song-row-title">${escapeHtml(s.title)}</div>
-          <div class="song-row-sub">${[s.composer, s.key, s.tempo && s.tempo + ' bpm'].filter(Boolean).map(escapeHtml).join(' · ')}</div>
-        </div>
-        <button class="btn btn-tiny" data-action="edit">Redigera</button>
-      </li>
-    `).join('');
+
+    const groups = new Map();
+    for (const s of filtered) {
+      const gid = s.groupId || s.id;
+      if (!groups.has(gid)) groups.set(gid, []);
+      groups.get(gid).push(s);
+    }
+    let html = '';
+    for (const members of groups.values()) {
+      members.sort((a, b) => (a.versionLabel || '').localeCompare(b.versionLabel || '', 'sv', { numeric: true }));
+      if (members.length === 1) {
+        html += songRowHtml(members[0]);
+        continue;
+      }
+      const gid = members[0].groupId;
+      const expanded = libraryExpandedGroups.has(gid);
+      const primary = members.find(m => m.versionLabel === 'V1') || members[0];
+      html += songRowHtml(primary, { expandable: true, expanded, versionCount: members.length });
+      if (expanded) {
+        for (const m of members) {
+          if (m.id === primary.id) continue;
+          html += songRowHtml(m, { sub: true });
+        }
+      }
+    }
+    document.getElementById('songList').innerHTML = html;
   }
 
   document.getElementById('songSearch').addEventListener('input', renderLibrary);
+  document.getElementById('showNotesToggle').addEventListener('change', renderLibrary);
 
-  document.getElementById('songList').addEventListener('click', (e) => {
+  function startInlineRename(row, id) {
+    const song = state.songs.find(s => s.id === id);
+    if (!song) return;
+    const titleEl = row.querySelector('.song-row-title');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'row-title-input';
+    input.value = song.title;
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+    let saved = false;
+    const save = async () => {
+      if (saved) return;
+      saved = true;
+      const newTitle = input.value.trim();
+      if (newTitle && newTitle !== song.title) {
+        try { await Songs.update(id, { title: newTitle }); toast('Titel ändrad'); } catch (err) { toast(err.message, true); }
+      }
+      await loadSongs();
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); saved = true; renderLibrary(); }
+    });
+    input.addEventListener('blur', save);
+  }
+
+  document.getElementById('songList').addEventListener('click', async (e) => {
+    const toggleBtn = e.target.closest('[data-action="toggle-versions"]');
+    if (toggleBtn) {
+      const gid = toggleBtn.dataset.group;
+      if (libraryExpandedGroups.has(gid)) libraryExpandedGroups.delete(gid); else libraryExpandedGroups.add(gid);
+      renderLibrary();
+      return;
+    }
     const row = e.target.closest('.song-row');
     if (!row) return;
     const id = row.dataset.id;
     if (e.target.closest('[data-action="edit"]')) {
       openEditor(id, 'library');
+    } else if (e.target.closest('[data-action="delete"]')) {
+      const song = state.songs.find(s => s.id === id);
+      if (!confirm(`Radera "${song ? song.title : 'låten'}" permanent?`)) return;
+      try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); } catch (err) { toast(err.message, true); }
+    } else if (e.target.closest('[data-action="rename"]')) {
+      startInlineRename(row, id);
     } else {
       openViewer(id, null);
     }
   });
 
   document.getElementById('newSongBtn').addEventListener('click', () => openEditor(null, 'library'));
+
+  document.getElementById('quickAddForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('quickAddTitle');
+    const title = input.value.trim();
+    if (!title) return;
+    try {
+      await Songs.create({ title });
+      input.value = '';
+      toast('Låt tillagd - fyll i resten när du vill');
+      await loadSongs();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  // ---------- Import ----------
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importText').value = '';
+    document.getElementById('importPreview').innerHTML = '';
+    showView('import');
+  });
+  document.getElementById('importBack').addEventListener('click', () => showView('library'));
+
+  function parseImportBlocks(raw) {
+    const blocks = raw.split(/\n\s*---\s*\n/);
+    return blocks.map(b => b.trim()).filter(Boolean).map(block => {
+      const lines = block.split('\n');
+      const title = lines[0].trim() || 'Namnlös låt';
+      const text = lines.slice(1).join('\n').replace(/^\n+/, '');
+      return { title, text, lineCount: Math.max(0, lines.length - 1) };
+    });
+  }
+
+  document.getElementById('importText').addEventListener('input', () => {
+    const blocks = parseImportBlocks(document.getElementById('importText').value);
+    document.getElementById('importPreview').innerHTML = blocks.length
+      ? `<p style="font-size:12.5px;color:var(--text-dim);">${blocks.length} låt(ar) hittade:</p>` +
+        blocks.map(b => `<div class="import-preview-item"><div class="title">${escapeHtml(b.title)}</div><div class="lines">${b.lineCount} rader text</div></div>`).join('')
+      : '';
+  });
+
+  document.getElementById('runImportBtn').addEventListener('click', async () => {
+    const blocks = parseImportBlocks(document.getElementById('importText').value);
+    if (!blocks.length) { toast('Klistra in text först', true); return; }
+    try {
+      const result = await api('/api/songs/import', { method: 'POST', body: JSON.stringify({ songs: blocks }) });
+      toast(`${result.created} låt(ar) importerade`);
+      await loadSongs();
+      showView('library');
+    } catch (err) { toast(err.message, true); }
+  });
 
   // ---------- Song editor ----------
 
@@ -184,6 +325,7 @@
     document.getElementById('f-tags').value = (song.tags || []).join(', ');
     document.getElementById('f-notes').value = song.notes || '';
     document.getElementById('f-text').value = song.text || '';
+    savedSelection = { start: (song.text || '').length, end: (song.text || '').length };
     document.getElementById('deleteSongBtn').hidden = !id;
     document.getElementById('newVersionBtn').hidden = !id;
     if (id) renderVersionChips('editorVersionChips', song, id, (pickedId) => openEditor(pickedId, returnView));
@@ -248,9 +390,19 @@
   document.getElementById('helpBtn').addEventListener('click', () => { document.getElementById('helpModal').hidden = false; });
   document.getElementById('closeHelp').addEventListener('click', () => { document.getElementById('helpModal').hidden = true; });
 
+  // Mobila webbläsare tappar ofta den markerade texten precis innan ett knappklick
+  // hinner läsas av (fokus flyttas till knappen först). Vi sparar därför markeringen
+  // kontinuerligt medan den sätts, så vi alltid har rätt ord/rad när knappen trycks.
+  const textEditor = document.getElementById('f-text');
+  let savedSelection = { start: 0, end: 0 };
+  function captureSelection() {
+    savedSelection = { start: textEditor.selectionStart, end: textEditor.selectionEnd };
+  }
+  ['select', 'keyup', 'mouseup', 'touchend', 'input'].forEach(evt => textEditor.addEventListener(evt, captureSelection));
+
   function insertMarkup(kind) {
-    const ta = document.getElementById('f-text');
-    const start = ta.selectionStart, end = ta.selectionEnd;
+    const ta = textEditor;
+    const start = savedSelection.start, end = savedSelection.end;
     const value = ta.value;
     const selected = value.slice(start, end);
     const atLineStart = start === 0 || value[start - 1] === '\n';
@@ -274,13 +426,23 @@
     ta.value = value.slice(0, start) + insertText + value.slice(end);
     const selStart = start + before.length;
     const selEnd = selStart + placeholder.length;
-    ta.focus();
+    savedSelection = { start: selStart, end: selEnd };
+
+    // {preventScroll:true} stoppar webbläsaren från att hoppa i sidled/höjdled när
+    // fältet fokuseras om efter att värdet bytts ut - annars kan hela gränssnittet
+    // hoppa iväg på mobil. Vi positionerar textarean själv manuellt istället, så
+    // markeringen ändå syns.
+    ta.focus({ preventScroll: true });
     ta.setSelectionRange(selStart, selEnd);
+    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    const linesBefore = ta.value.slice(0, selStart).split('\n').length - 1;
+    ta.scrollTop = Math.max(0, linesBefore * lineHeight - ta.clientHeight / 2);
   }
 
   document.querySelectorAll('[data-insert]').forEach(btn => {
     btn.addEventListener('click', () => insertMarkup(btn.dataset.insert));
   });
+
 
   // ---------- Export ----------
 
@@ -406,12 +568,19 @@
 
   let editingSetlist = null;
 
+  function deriveSongIds(items) {
+    return items.filter(i => i.kind === 'song').map(i => i.songId);
+  }
+
   async function openSetlistEditor(id) {
     state.currentSetlistId = id;
     if (id) {
       try { editingSetlist = await Setlists.get(id); } catch (e) { toast(e.message, true); return; }
+      if (!Array.isArray(editingSetlist.items)) {
+        editingSetlist.items = (editingSetlist.songIds || []).map(sid => ({ kind: 'song', songId: sid }));
+      }
     } else {
-      editingSetlist = { name: '', venue: '', date: '', notes: '', songIds: [] };
+      editingSetlist = { name: '', venue: '', date: '', notes: '', items: [], songIds: [] };
     }
     document.getElementById('sl-name').value = editingSetlist.name || '';
     document.getElementById('sl-venue').value = editingSetlist.venue || '';
@@ -425,28 +594,47 @@
 
   function renderSetlistBuilder() {
     const songsById = Object.fromEntries(state.songs.map(s => [s.id, s]));
+    const items = editingSetlist.items;
+    editingSetlist.songIds = deriveSongIds(items);
     const list = document.getElementById('setlistSongs');
-    document.getElementById('setlistEmptyMsg').hidden = editingSetlist.songIds.length > 0;
-    list.innerHTML = editingSetlist.songIds.map((id, i) => {
-      const s = songsById[id];
+    document.getElementById('setlistEmptyMsg').hidden = items.length > 0;
+    let songNumber = 0;
+    list.innerHTML = items.map((item, i) => {
+      const upDisabled = i === 0 ? 'disabled' : '';
+      const downDisabled = i === items.length - 1 ? 'disabled' : '';
+      if (item.kind === 'group') {
+        return `
+          <li class="reorder-row group-header" data-idx="${i}">
+            <span class="reorder-index">§</span>
+            <input class="reorder-title group-label-input" data-idx="${i}" type="text" value="${escapeHtml(item.label)}" placeholder="Grupprubrik, t.ex. E-stämning">
+            <span class="reorder-btns">
+              <button class="btn btn-tiny" data-act="up" data-idx="${i}" ${upDisabled}>▲</button>
+              <button class="btn btn-tiny" data-act="down" data-idx="${i}" ${downDisabled}>▼</button>
+              <button class="btn btn-tiny btn-danger" data-act="remove" data-idx="${i}">✕</button>
+            </span>
+          </li>`;
+      }
+      const s = songsById[item.songId];
       if (!s) return '';
+      songNumber++;
       return `
-        <li class="reorder-row" data-id="${id}">
-          <span class="reorder-index">${i + 1}</span>
+        <li class="reorder-row" data-idx="${i}">
+          <span class="reorder-index">${songNumber}</span>
           <span class="reorder-title">${escapeHtml(s.title)}</span>
           <span class="reorder-meta">${escapeHtml(s.key || '')}</span>
           <span class="reorder-btns">
-            <button class="btn btn-tiny" data-act="up" ${i === 0 ? 'disabled' : ''}>▲</button>
-            <button class="btn btn-tiny" data-act="down" ${i === editingSetlist.songIds.length - 1 ? 'disabled' : ''}>▼</button>
-            <button class="btn btn-tiny btn-danger" data-act="remove">✕</button>
+            <button class="btn btn-tiny" data-act="up" data-idx="${i}" ${upDisabled}>▲</button>
+            <button class="btn btn-tiny" data-act="down" data-idx="${i}" ${downDisabled}>▼</button>
+            <button class="btn btn-tiny btn-danger" data-act="remove" data-idx="${i}">✕</button>
           </span>
         </li>`;
     }).join('');
 
     const q = document.getElementById('addSongSearch').value.trim().toLowerCase();
     const addList = document.getElementById('addSongList');
-    const available = state.songs.filter(s => !editingSetlist.songIds.includes(s.id))
-      .filter(s => !q || (s.title + ' ' + (s.composer||'')).toLowerCase().includes(q));
+    const usedIds = new Set(editingSetlist.songIds);
+    const available = state.songs.filter(s => !usedIds.has(s.id))
+      .filter(s => !q || (s.title + ' ' + (s.composer || '')).toLowerCase().includes(q));
     addList.innerHTML = available.map(s => `
       <li class="song-row compact" data-id="${s.id}">
         <div class="song-row-main" data-action="add">
@@ -463,26 +651,39 @@
   document.getElementById('addSongList').addEventListener('click', (e) => {
     const row = e.target.closest('.song-row');
     if (!row) return;
-    editingSetlist.songIds.push(row.dataset.id);
+    editingSetlist.items.push({ kind: 'song', songId: row.dataset.id });
     renderSetlistBuilder();
   });
 
+  document.getElementById('addGroupHeaderBtn').addEventListener('click', () => {
+    editingSetlist.items.push({ kind: 'group', label: 'Ny grupp' });
+    renderSetlistBuilder();
+    const inputs = document.querySelectorAll('.group-label-input');
+    const last = inputs[inputs.length - 1];
+    if (last) { last.focus(); last.select(); }
+  });
+
   document.getElementById('setlistSongs').addEventListener('click', (e) => {
-    const row = e.target.closest('.reorder-row');
-    if (!row) return;
-    const id = row.dataset.id;
-    const idx = editingSetlist.songIds.indexOf(id);
+    const idx = parseInt(e.target.dataset.idx, 10);
+    if (Number.isNaN(idx)) return;
     const act = e.target.dataset.act;
+    const items = editingSetlist.items;
     if (act === 'up' && idx > 0) {
-      [editingSetlist.songIds[idx - 1], editingSetlist.songIds[idx]] = [editingSetlist.songIds[idx], editingSetlist.songIds[idx - 1]];
-    } else if (act === 'down' && idx < editingSetlist.songIds.length - 1) {
-      [editingSetlist.songIds[idx + 1], editingSetlist.songIds[idx]] = [editingSetlist.songIds[idx], editingSetlist.songIds[idx + 1]];
+      [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
+    } else if (act === 'down' && idx < items.length - 1) {
+      [items[idx + 1], items[idx]] = [items[idx], items[idx + 1]];
     } else if (act === 'remove') {
-      editingSetlist.songIds.splice(idx, 1);
+      items.splice(idx, 1);
     } else {
       return;
     }
     renderSetlistBuilder();
+  });
+
+  document.getElementById('setlistSongs').addEventListener('change', (e) => {
+    if (!e.target.classList.contains('group-label-input')) return;
+    const idx = parseInt(e.target.dataset.idx, 10);
+    if (editingSetlist.items[idx]) editingSetlist.items[idx].label = e.target.value.trim() || 'Grupp';
   });
 
   document.getElementById('setlistEditorBack').addEventListener('click', () => showView('setlists'));
@@ -495,7 +696,7 @@
       venue: document.getElementById('sl-venue').value.trim(),
       date: document.getElementById('sl-date').value,
       notes: document.getElementById('sl-notes').value,
-      songIds: editingSetlist.songIds,
+      items: editingSetlist.items,
     };
     try {
       if (state.currentSetlistId) {
@@ -524,8 +725,10 @@
   });
 
   document.getElementById('startPerformance').addEventListener('click', () => {
-    if (!editingSetlist.songIds.length) { toast('Lägg till minst en låt först', true); return; }
-    openViewer(editingSetlist.songIds[0], { setlist: editingSetlist, index: 0 });
+    const songIds = deriveSongIds(editingSetlist.items);
+    if (!songIds.length) { toast('Lägg till minst en låt först', true); return; }
+    editingSetlist.songIds = songIds;
+    openViewer(songIds[0], { setlist: editingSetlist, index: 0 });
   });
 
   // ---------- Viewer / scenläge ----------
@@ -646,7 +849,7 @@
   function startAutoscroll() {
     state.viewer.scrolling = true;
     document.getElementById('toggleScroll').textContent = 'På';
-    const container = document.getElementById('view-viewer');
+    const container = document.getElementById('songBody');
     let last = performance.now();
     function tick(now) {
       if (!state.viewer.scrolling) return;
@@ -822,7 +1025,7 @@
     document.getElementById('nextLineBtn').focus();
   }
 
-  document.getElementById('checkLineBtn').addEventListener('click', () => {
+  function checkCurrentLine() {
     const line = practice.lines[practice.index];
     const userText = document.getElementById('practiceInput').value;
     if (!userText.trim()) { toast('Skriv något, eller tryck Visa rad', true); return; }
@@ -834,14 +1037,25 @@
     } else {
       finishPracticeLine('partial', renderDiffHtml(ops));
     }
+  }
+
+  // Mobila tangentbord skickar sällan en pålitlig "Enter"-keydown (IME-hantering gör
+  // den opålitlig), men en formulär-submit triggas tillförlitligt av både knapptryck
+  // och tangentbordets Retur/Klar-knapp. submitter är null vid Enter, annars knappen -
+  // så vi kan låta av/på-växeln bara styra Enter-vägen, inte det uttryckliga knapptrycket.
+  document.getElementById('practiceInputArea').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const viaEnterKey = !e.submitter;
+    if (viaEnterKey && !document.getElementById('enterToggle').checked) return;
+    checkCurrentLine();
   });
 
-  document.getElementById('practiceInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!document.getElementById('checkLineBtn').hidden) document.getElementById('checkLineBtn').click();
-      else if (!document.getElementById('nextLineBtn').hidden) document.getElementById('nextLineBtn').click();
-    }
+  try {
+    const saved = localStorage.getItem('songbook-practice-enter');
+    if (saved !== null) document.getElementById('enterToggle').checked = saved === '1';
+  } catch (_) {}
+  document.getElementById('enterToggle').addEventListener('change', (e) => {
+    try { localStorage.setItem('songbook-practice-enter', e.target.checked ? '1' : '0'); } catch (_) {}
   });
 
   document.getElementById('revealLineBtn').addEventListener('click', () => {
@@ -891,9 +1105,156 @@
     });
   }
 
+  // ---------- Rimlexikon ----------
+
+  state.rhymes = [];
+  let editingRhymeId = null;
+
+  const RHYME_LANG_LABEL = { sv: 'Svenska', en: 'Engelska', fr: 'Franska', other: 'Annat' };
+  const RHYME_TYPE_LABEL = { simple: 'Enkelt rim', multisyllable: 'Flerstavigt', phrase: 'Frasrim', assonance: 'Assonans', alliteration: 'Allitteration' };
+
+  async function loadRhymes() {
+    try { state.rhymes = await Rhymes.list(); renderRhymeList(); } catch (e) { toast(e.message, true); }
+  }
+
+  function openRhymePanel() { document.getElementById('rhymePanel').hidden = false; loadRhymes(); }
+  function closeRhymePanel() { document.getElementById('rhymePanel').hidden = true; }
+  document.getElementById('rhymeToggle').addEventListener('click', openRhymePanel);
+  document.getElementById('closeRhymePanel').addEventListener('click', closeRhymePanel);
+
+  function resetRhymeForm() {
+    editingRhymeId = null;
+    document.getElementById('rhymeFormTitle').textContent = 'Nytt rim';
+    document.getElementById('rhymeWords').value = '';
+    document.getElementById('rhymeLanguage').value = 'sv';
+    document.getElementById('rhymeType').value = 'simple';
+    document.getElementById('rhymeNotes').value = '';
+    document.getElementById('addRhymeBtn').textContent = '+ Lägg till rim';
+    document.getElementById('cancelRhymeEdit').hidden = true;
+  }
+
+  function renderRhymeList() {
+    const q = document.getElementById('rhymeSearch').value.trim().toLowerCase();
+    const typeFilter = document.getElementById('rhymeFilterType').value;
+    const songsById = Object.fromEntries(state.songs.map(s => [s.id, s]));
+    const filtered = state.rhymes.filter(r => {
+      if (typeFilter && r.type !== typeFilter) return false;
+      if (!q) return true;
+      return r.words.join(' ').toLowerCase().includes(q) || (r.notes || '').toLowerCase().includes(q);
+    });
+    document.getElementById('rhymeList').innerHTML = filtered.map(r => {
+      const canLink = !!state.currentSongId;
+      const alreadyLinked = (r.songUsage || []).some(u => u.songId === state.currentSongId);
+      const usageChips = (r.songUsage || []).map(u => {
+        const s = songsById[u.songId];
+        const label = s ? s.title : 'Okänd låt';
+        return `<span class="rhyme-usage-chip" data-song="${u.songId}" data-rhyme="${r.id}">${escapeHtml(label)}<span class="remove-x" data-action="unlink" data-song="${u.songId}" data-rhyme="${r.id}">✕</span></span>`;
+      }).join('');
+      return `
+        <li class="rhyme-item" data-id="${r.id}">
+          <div class="rhyme-item-words">${escapeHtml(r.words.join(' / '))}</div>
+          <div class="rhyme-item-meta">${RHYME_LANG_LABEL[r.language] || r.language} · ${RHYME_TYPE_LABEL[r.type] || r.type}</div>
+          ${r.notes ? `<div class="rhyme-item-notes">${escapeHtml(r.notes)}</div>` : ''}
+          ${usageChips ? `<div class="rhyme-item-usage">${usageChips}</div>` : ''}
+          <div class="rhyme-item-actions">
+            <button class="btn btn-tiny" data-action="edit-rhyme" type="button">Redigera</button>
+            <button class="btn btn-tiny" data-action="link-song" type="button" ${!canLink || alreadyLinked ? 'disabled' : ''}>${alreadyLinked ? 'Kopplad' : '+ Koppla nuvarande låt'}</button>
+            <button class="btn btn-tiny btn-danger" data-action="delete-rhyme" type="button">✕</button>
+          </div>
+        </li>`;
+    }).join('') || '<p class="empty-state small">Inga rim ännu.</p>';
+  }
+
+  document.getElementById('rhymeSearch').addEventListener('input', renderRhymeList);
+  document.getElementById('rhymeFilterType').addEventListener('change', renderRhymeList);
+
+  document.getElementById('addRhymeBtn').addEventListener('click', async () => {
+    const words = document.getElementById('rhymeWords').value.split(',').map(w => w.trim()).filter(Boolean);
+    if (words.length < 2) { toast('Ange minst två ord eller fraser, kommaseparerat', true); return; }
+    const data = {
+      words,
+      language: document.getElementById('rhymeLanguage').value,
+      type: document.getElementById('rhymeType').value,
+      notes: document.getElementById('rhymeNotes').value.trim(),
+    };
+    try {
+      if (editingRhymeId) {
+        await Rhymes.update(editingRhymeId, data);
+        toast('Rimmet uppdaterat');
+      } else {
+        await Rhymes.create(data);
+        toast('Rimmet tillagt');
+      }
+      resetRhymeForm();
+      await loadRhymes();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('cancelRhymeEdit').addEventListener('click', resetRhymeForm);
+
+  document.getElementById('rhymeList').addEventListener('click', async (e) => {
+    const item = e.target.closest('.rhyme-item');
+    if (!item) return;
+    const id = item.dataset.id;
+    const rhyme = state.rhymes.find(r => r.id === id);
+    if (!rhyme) return;
+
+    if (e.target.closest('[data-action="edit-rhyme"]')) {
+      editingRhymeId = id;
+      document.getElementById('rhymeFormTitle').textContent = 'Redigerar rim';
+      document.getElementById('rhymeWords').value = rhyme.words.join(', ');
+      document.getElementById('rhymeLanguage').value = rhyme.language;
+      document.getElementById('rhymeType').value = rhyme.type;
+      document.getElementById('rhymeNotes').value = rhyme.notes || '';
+      document.getElementById('addRhymeBtn').textContent = 'Spara ändringar';
+      document.getElementById('cancelRhymeEdit').hidden = false;
+      document.getElementById('rhymePanel').querySelector('.rhyme-panel-body').scrollTop = 0;
+    } else if (e.target.closest('[data-action="delete-rhyme"]')) {
+      if (!confirm('Radera rimmet permanent?')) return;
+      try { await Rhymes.remove(id); toast('Rimmet raderat'); await loadRhymes(); } catch (err) { toast(err.message, true); }
+    } else if (e.target.closest('[data-action="link-song"]')) {
+      if (!state.currentSongId) return;
+      const usage = (rhyme.songUsage || []).concat([{ songId: state.currentSongId }]);
+      try { await Rhymes.update(id, { songUsage: usage }); await loadRhymes(); } catch (err) { toast(err.message, true); }
+    } else if (e.target.closest('[data-action="unlink"]')) {
+      const songId = e.target.closest('[data-action="unlink"]').dataset.song;
+      const usage = (rhyme.songUsage || []).filter(u => u.songId !== songId);
+      try { await Rhymes.update(id, { songUsage: usage }); await loadRhymes(); } catch (err) { toast(err.message, true); }
+    } else if (e.target.closest('.rhyme-usage-chip')) {
+      const songId = e.target.closest('.rhyme-usage-chip').dataset.song;
+      openEditor(songId, 'library');
+    }
+  });
+
+  // Sök rim i låtar: två ord, radavstånd
+  document.getElementById('proxSearchBtn').addEventListener('click', async () => {
+    const w1 = document.getElementById('proxWord1').value.trim();
+    const w2 = document.getElementById('proxWord2').value.trim();
+    const radius = document.getElementById('proxRadius').value || 4;
+    if (!w1 || !w2) { toast('Skriv in båda orden', true); return; }
+    try {
+      const results = await api(`/api/search/proximity?word1=${encodeURIComponent(w1)}&word2=${encodeURIComponent(w2)}&radius=${encodeURIComponent(radius)}`);
+      const box = document.getElementById('proxResults');
+      if (!results.length) { box.innerHTML = '<p class="empty-state small">Inga träffar.</p>'; return; }
+      box.innerHTML = results.map(r => `
+        <div class="prox-result" data-song="${r.songId}">
+          <div class="title">${escapeHtml(r.title)} ${r.versionLabel ? `<span class="version-count-badge">${escapeHtml(r.versionLabel)}</span>` : ''}</div>
+          ${r.occurrences.map(o => `<div class="line-pair">"${escapeHtml(o.line1Text)}" ↔ "${escapeHtml(o.line2Text)}" (${o.distance} rad${o.distance === 1 ? '' : 'er'})</div>`).join('')}
+        </div>`).join('');
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('proxResults').addEventListener('click', (e) => {
+    const row = e.target.closest('.prox-result');
+    if (row) openEditor(row.dataset.song, 'library');
+  });
+
+
+
   // ---------- Init ----------
 
   loadSongs();
   loadSetlists();
+  loadRhymes();
   connectWS();
 })();
