@@ -230,8 +230,17 @@ Pennikonen (✎) i toppfältet öppnar ett sidofält du kan ha uppe samtidigt so
 editorn. Där kan du:
 
 - Lägga till rim som ordgrupper (kommaseparerat), taggade med **språk** (svenska/engelska/
-  franska/annat) och **typ** (enkelt rim, flerstavigt, frasrim, assonans, allitteration) - typen
-  fungerar också som filter i listan.
+  franska/tyska/annat) och **typ** (enkelt rim, flerstavigt, frasrim, assonans, allitteration) -
+  typen fungerar också som filter, och språket färgkodas i listan för snabb överblick.
+- Lägga till **frasexempel** (t.ex. "petit noir", "petit café") och fria **taggar** (poetiskt,
+  slang, metal osv.) per rim, samt markera som **⭐ favorit**.
+- Ändra språk eller typ direkt i listan via rullgardinerna på varje rad - ingen omväg via
+  redigeringsläget krävs för snabba justeringar.
+- **Massmarkera** flera rim med kryssrutorna (eller "Markera alla filtrerade") för att radera,
+  byta språk, eller lägga till en tagg på alla markerade på en gång.
+- **Importera JSON** - klistra in en lista av objekt (`[{"words":["hus","mus"],"language":"sv"}]`).
+  Saknar ett objekt språkfält används standardspråket du väljer i importrutan istället för att
+  gissa fel.
 - Koppla ett rim till låtar du använt det i - antingen manuellt via **+ Koppla nuvarande låt**
   när du har en låt öppen i editorn, eller radera kopplingen igen med ✕ på chippen.
 - **Sök rim i låtar** - skriv in två ord, appen letar igenom alla låtars sångtext (ackord och

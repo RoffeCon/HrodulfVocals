@@ -624,6 +624,41 @@ input[type="search"] { flex: 1; }
 .rhyme-usage-chip .remove-x { margin-left: 4px; opacity: 0.7; }
 .rhyme-item-actions { display: flex; gap: 5px; margin-top: 7px; }
 
+.rhyme-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--amber-dim);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.rhyme-bulk-bar select, .rhyme-bulk-bar input { width: auto; margin-bottom: 0; padding: 5px 7px; font-size: 12px; }
+#rhymeBulkCount { color: var(--text-dim); font-weight: 600; margin-right: auto; }
+
+.rhyme-item-row { display: flex; align-items: flex-start; gap: 8px; }
+.rhyme-item-row input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+.rhyme-item-main { flex: 1; min-width: 0; }
+.rhyme-star { background: none; border: none; cursor: pointer; font-size: 14px; flex-shrink: 0; color: var(--text-faint); }
+.rhyme-star.is-favorite { color: var(--amber); }
+
+.lang-badge { padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+.lang-sv { background: var(--teal-tint); color: var(--teal); }
+.lang-en { background: var(--amber-tint); color: var(--amber); }
+.lang-fr { background: var(--danger-tint); color: var(--danger); }
+.lang-de { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); }
+.lang-other { color: var(--text-faint); }
+
+.rhyme-item-phrases { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
+.rhyme-item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.rhyme-tag-chip { font-size: 10.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1px 6px; color: var(--text-dim); }
+
+.rhyme-inline-selects { display: flex; gap: 4px; margin-top: 4px; }
+.rhyme-inline-selects select { width: auto; margin-bottom: 0; padding: 3px 5px; font-size: 11px; }
+
 .prox-results { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .prox-result {
   background: var(--surface-2);

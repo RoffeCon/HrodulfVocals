@@ -1109,8 +1109,9 @@
 
   state.rhymes = [];
   let editingRhymeId = null;
+  const rhymeSelected = new Set();
 
-  const RHYME_LANG_LABEL = { sv: 'Svenska', en: 'Engelska', fr: 'Franska', other: 'Annat' };
+  const RHYME_LANG_LABEL = { sv: 'Svenska', en: 'Engelska', fr: 'Franska', de: 'Tyska', other: 'Annat' };
   const RHYME_TYPE_LABEL = { simple: 'Enkelt rim', multisyllable: 'Flerstavigt', phrase: 'Frasrim', assonance: 'Assonans', alliteration: 'Allitteration' };
 
   async function loadRhymes() {
@@ -1128,45 +1129,81 @@
     document.getElementById('rhymeWords').value = '';
     document.getElementById('rhymeLanguage').value = 'sv';
     document.getElementById('rhymeType').value = 'simple';
+    document.getElementById('rhymePhrases').value = '';
+    document.getElementById('rhymeTags').value = '';
     document.getElementById('rhymeNotes').value = '';
+    document.getElementById('rhymeFavorite').checked = false;
     document.getElementById('addRhymeBtn').textContent = '+ Lägg till rim';
     document.getElementById('cancelRhymeEdit').hidden = true;
   }
 
-  function renderRhymeList() {
+  function getFilteredRhymes() {
     const q = document.getElementById('rhymeSearch').value.trim().toLowerCase();
     const typeFilter = document.getElementById('rhymeFilterType').value;
-    const songsById = Object.fromEntries(state.songs.map(s => [s.id, s]));
-    const filtered = state.rhymes.filter(r => {
+    const langFilter = document.getElementById('rhymeFilterLanguage').value;
+    const favOnly = document.getElementById('rhymeFavoritesOnly').checked;
+    return state.rhymes.filter(r => {
       if (typeFilter && r.type !== typeFilter) return false;
+      if (langFilter && r.language !== langFilter) return false;
+      if (favOnly && !r.favorite) return false;
       if (!q) return true;
-      return r.words.join(' ').toLowerCase().includes(q) || (r.notes || '').toLowerCase().includes(q);
+      const hay = [r.words.join(' '), (r.phrases || []).join(' '), (r.tags || []).join(' '), r.notes || ''].join(' ').toLowerCase();
+      return hay.includes(q);
     });
+  }
+
+  function renderRhymeBulkBar() {
+    const bar = document.getElementById('rhymeBulkBar');
+    if (rhymeSelected.size === 0) { bar.hidden = true; return; }
+    bar.hidden = false;
+    document.getElementById('rhymeBulkCount').textContent = `${rhymeSelected.size} markerade`;
+  }
+
+  function renderRhymeList() {
+    const songsById = Object.fromEntries(state.songs.map(s => [s.id, s]));
+    const filtered = getFilteredRhymes();
+    const canLink = !!state.currentSongId;
     document.getElementById('rhymeList').innerHTML = filtered.map(r => {
-      const canLink = !!state.currentSongId;
       const alreadyLinked = (r.songUsage || []).some(u => u.songId === state.currentSongId);
       const usageChips = (r.songUsage || []).map(u => {
         const s = songsById[u.songId];
         const label = s ? s.title : 'Okänd låt';
         return `<span class="rhyme-usage-chip" data-song="${u.songId}" data-rhyme="${r.id}">${escapeHtml(label)}<span class="remove-x" data-action="unlink" data-song="${u.songId}" data-rhyme="${r.id}">✕</span></span>`;
       }).join('');
+      const tagChips = (r.tags || []).map(t => `<span class="rhyme-tag-chip">${escapeHtml(t)}</span>`).join('');
+      const checked = rhymeSelected.has(r.id) ? 'checked' : '';
+      const langOptions = Object.keys(RHYME_LANG_LABEL).map(code => `<option value="${code}" ${r.language === code ? 'selected' : ''}>${RHYME_LANG_LABEL[code]}</option>`).join('');
+      const typeOptions = Object.keys(RHYME_TYPE_LABEL).map(code => `<option value="${code}" ${r.type === code ? 'selected' : ''}>${RHYME_TYPE_LABEL[code]}</option>`).join('');
       return `
         <li class="rhyme-item" data-id="${r.id}">
-          <div class="rhyme-item-words">${escapeHtml(r.words.join(' / '))}</div>
-          <div class="rhyme-item-meta">${RHYME_LANG_LABEL[r.language] || r.language} · ${RHYME_TYPE_LABEL[r.type] || r.type}</div>
-          ${r.notes ? `<div class="rhyme-item-notes">${escapeHtml(r.notes)}</div>` : ''}
-          ${usageChips ? `<div class="rhyme-item-usage">${usageChips}</div>` : ''}
-          <div class="rhyme-item-actions">
-            <button class="btn btn-tiny" data-action="edit-rhyme" type="button">Redigera</button>
-            <button class="btn btn-tiny" data-action="link-song" type="button" ${!canLink || alreadyLinked ? 'disabled' : ''}>${alreadyLinked ? 'Kopplad' : '+ Koppla nuvarande låt'}</button>
-            <button class="btn btn-tiny btn-danger" data-action="delete-rhyme" type="button">✕</button>
+          <div class="rhyme-item-row">
+            <input type="checkbox" class="rhyme-select" data-id="${r.id}" ${checked}>
+            <button class="rhyme-star ${r.favorite ? 'is-favorite' : ''}" data-action="toggle-fav" type="button" title="Favorit">${r.favorite ? '★' : '☆'}</button>
+            <div class="rhyme-item-main">
+              <div class="rhyme-item-words">${escapeHtml(r.words.join(' / '))}</div>
+              <div class="rhyme-item-meta"><span class="lang-badge lang-${r.language}">${RHYME_LANG_LABEL[r.language] || r.language}</span> · ${RHYME_TYPE_LABEL[r.type] || r.type}</div>
+              ${r.phrases && r.phrases.length ? `<div class="rhyme-item-phrases">${escapeHtml(r.phrases.join(', '))}</div>` : ''}
+              ${tagChips ? `<div class="rhyme-item-tags">${tagChips}</div>` : ''}
+              ${r.notes ? `<div class="rhyme-item-notes">${escapeHtml(r.notes)}</div>` : ''}
+              ${usageChips ? `<div class="rhyme-item-usage">${usageChips}</div>` : ''}
+              <div class="rhyme-inline-selects">
+                <select class="rhyme-inline-lang" data-id="${r.id}">${langOptions}</select>
+                <select class="rhyme-inline-type" data-id="${r.id}">${typeOptions}</select>
+              </div>
+              <div class="rhyme-item-actions">
+                <button class="btn btn-tiny" data-action="edit-rhyme" type="button">Redigera</button>
+                <button class="btn btn-tiny" data-action="link-song" type="button" ${!canLink || alreadyLinked ? 'disabled' : ''}>${alreadyLinked ? 'Kopplad' : '+ Koppla nuvarande låt'}</button>
+                <button class="btn btn-tiny btn-danger" data-action="delete-rhyme" type="button">✕</button>
+              </div>
+            </div>
           </div>
         </li>`;
     }).join('') || '<p class="empty-state small">Inga rim ännu.</p>';
+    renderRhymeBulkBar();
   }
 
-  document.getElementById('rhymeSearch').addEventListener('input', renderRhymeList);
-  document.getElementById('rhymeFilterType').addEventListener('change', renderRhymeList);
+  ['rhymeSearch'].forEach(id => document.getElementById(id).addEventListener('input', renderRhymeList));
+  ['rhymeFilterType', 'rhymeFilterLanguage', 'rhymeFavoritesOnly'].forEach(id => document.getElementById(id).addEventListener('change', renderRhymeList));
 
   document.getElementById('addRhymeBtn').addEventListener('click', async () => {
     const words = document.getElementById('rhymeWords').value.split(',').map(w => w.trim()).filter(Boolean);
@@ -1175,7 +1212,10 @@
       words,
       language: document.getElementById('rhymeLanguage').value,
       type: document.getElementById('rhymeType').value,
+      phrases: document.getElementById('rhymePhrases').value.split(',').map(p => p.trim()).filter(Boolean),
+      tags: document.getElementById('rhymeTags').value.split(',').map(t => t.trim()).filter(Boolean),
       notes: document.getElementById('rhymeNotes').value.trim(),
+      favorite: document.getElementById('rhymeFavorite').checked,
     };
     try {
       if (editingRhymeId) {
@@ -1205,13 +1245,18 @@
       document.getElementById('rhymeWords').value = rhyme.words.join(', ');
       document.getElementById('rhymeLanguage').value = rhyme.language;
       document.getElementById('rhymeType').value = rhyme.type;
+      document.getElementById('rhymePhrases').value = (rhyme.phrases || []).join(', ');
+      document.getElementById('rhymeTags').value = (rhyme.tags || []).join(', ');
       document.getElementById('rhymeNotes').value = rhyme.notes || '';
+      document.getElementById('rhymeFavorite').checked = !!rhyme.favorite;
       document.getElementById('addRhymeBtn').textContent = 'Spara ändringar';
       document.getElementById('cancelRhymeEdit').hidden = false;
       document.getElementById('rhymePanel').querySelector('.rhyme-panel-body').scrollTop = 0;
     } else if (e.target.closest('[data-action="delete-rhyme"]')) {
       if (!confirm('Radera rimmet permanent?')) return;
       try { await Rhymes.remove(id); toast('Rimmet raderat'); await loadRhymes(); } catch (err) { toast(err.message, true); }
+    } else if (e.target.closest('[data-action="toggle-fav"]')) {
+      try { await Rhymes.update(id, { favorite: !rhyme.favorite }); await loadRhymes(); } catch (err) { toast(err.message, true); }
     } else if (e.target.closest('[data-action="link-song"]')) {
       if (!state.currentSongId) return;
       const usage = (rhyme.songUsage || []).concat([{ songId: state.currentSongId }]);
@@ -1224,6 +1269,96 @@
       const songId = e.target.closest('.rhyme-usage-chip').dataset.song;
       openEditor(songId, 'library');
     }
+  });
+
+  document.getElementById('rhymeList').addEventListener('change', async (e) => {
+    if (e.target.classList.contains('rhyme-select')) {
+      const id = e.target.dataset.id;
+      if (e.target.checked) rhymeSelected.add(id); else rhymeSelected.delete(id);
+      renderRhymeBulkBar();
+      return;
+    }
+    if (e.target.classList.contains('rhyme-inline-lang')) {
+      try { await Rhymes.update(e.target.dataset.id, { language: e.target.value }); await loadRhymes(); } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (e.target.classList.contains('rhyme-inline-type')) {
+      try { await Rhymes.update(e.target.dataset.id, { type: e.target.value }); await loadRhymes(); } catch (err) { toast(err.message, true); }
+    }
+  });
+
+  document.getElementById('rhymeSelectAll').addEventListener('change', (e) => {
+    const filtered = getFilteredRhymes();
+    if (e.target.checked) filtered.forEach(r => rhymeSelected.add(r.id));
+    else filtered.forEach(r => rhymeSelected.delete(r.id));
+    renderRhymeList();
+  });
+
+  document.getElementById('rhymeBulkClear').addEventListener('click', () => {
+    rhymeSelected.clear();
+    document.getElementById('rhymeSelectAll').checked = false;
+    renderRhymeList();
+  });
+
+  document.getElementById('rhymeBulkDelete').addEventListener('click', async () => {
+    if (!rhymeSelected.size) return;
+    if (!confirm(`Radera ${rhymeSelected.size} markerade rim permanent?`)) return;
+    try {
+      await Promise.all([...rhymeSelected].map(id => Rhymes.remove(id)));
+      toast('Markerade rim raderade');
+      rhymeSelected.clear();
+      await loadRhymes();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('rhymeBulkLanguage').addEventListener('change', async (e) => {
+    const lang = e.target.value;
+    if (!lang || !rhymeSelected.size) return;
+    try {
+      await Promise.all([...rhymeSelected].map(id => Rhymes.update(id, { language: lang })));
+      toast('Språk uppdaterat för markerade rim');
+      e.target.value = '';
+      await loadRhymes();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  document.getElementById('rhymeBulkAddTag').addEventListener('click', async () => {
+    const tag = document.getElementById('rhymeBulkTag').value.trim();
+    if (!tag || !rhymeSelected.size) return;
+    try {
+      await Promise.all([...rhymeSelected].map(id => {
+        const r = state.rhymes.find(x => x.id === id);
+        const tags = Array.from(new Set([...(r?.tags || []), tag]));
+        return Rhymes.update(id, { tags });
+      }));
+      toast('Tagg tillagd på markerade rim');
+      document.getElementById('rhymeBulkTag').value = '';
+      await loadRhymes();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  // Import av rim från JSON - respekterar språk per post om det finns, annars
+  // faller det tillbaka på standardspråket som väljs i formuläret.
+  document.getElementById('showRhymeImport').addEventListener('click', () => {
+    const box = document.getElementById('rhymeImportBox');
+    box.hidden = !box.hidden;
+  });
+  document.getElementById('runRhymeImportBtn').addEventListener('click', async () => {
+    const raw = document.getElementById('rhymeImportText').value.trim();
+    if (!raw) { toast('Klistra in JSON först', true); return; }
+    let entries;
+    try { entries = JSON.parse(raw); } catch (err) { toast('Ogiltig JSON: ' + err.message, true); return; }
+    if (!Array.isArray(entries)) { toast('JSON:en måste vara en lista av objekt', true); return; }
+    try {
+      const result = await api('/api/rhymes/import', {
+        method: 'POST',
+        body: JSON.stringify({ entries, defaultLanguage: document.getElementById('rhymeImportLanguage').value }),
+      });
+      toast(`${result.created} rim importerade`);
+      document.getElementById('rhymeImportText').value = '';
+      document.getElementById('rhymeImportBox').hidden = true;
+      await loadRhymes();
+    } catch (err) { toast(err.message, true); }
   });
 
   // Sök rim i låtar: två ord, radavstånd

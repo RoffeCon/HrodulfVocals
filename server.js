@@ -287,6 +287,9 @@ app.post('/api/rhymes', async (req, res) => {
     language: body.language || 'sv',
     type: body.type || 'simple',
     words,
+    phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [],
+    tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [],
+    favorite: !!body.favorite,
     notes: body.notes || '',
     songUsage: Array.isArray(body.songUsage) ? body.songUsage : [],
     createdAt: now,
@@ -297,6 +300,38 @@ app.post('/api/rhymes', async (req, res) => {
   res.status(201).json(entry);
 });
 
+// Massimport: respekterar språk per post om det finns i JSON:en, annars faller den
+// tillbaka på det språk som valdes i importformuläret.
+app.post('/api/rhymes/import', async (req, res) => {
+  const body = req.body || {};
+  const items = Array.isArray(body.entries) ? body.entries : [];
+  const defaultLanguage = body.defaultLanguage || 'sv';
+  if (!items.length) return res.status(400).json({ error: 'Inga rim att importera' });
+  const now = new Date().toISOString();
+  let createdCount = 0;
+  for (const raw of items) {
+    const words = Array.isArray(raw.words) ? raw.words.map(w => String(w).trim()).filter(Boolean) : [];
+    if (words.length < 2) continue;
+    const entry = {
+      id: makeId(),
+      language: raw.language || defaultLanguage,
+      type: raw.type || 'simple',
+      words,
+      phrases: Array.isArray(raw.phrases) ? raw.phrases.map(p => String(p).trim()).filter(Boolean) : [],
+      tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : [],
+      favorite: !!raw.favorite,
+      notes: raw.notes || '',
+      songUsage: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    await rhymes.insert(entry);
+    createdCount++;
+  }
+  if (createdCount) broadcast({ type: 'rhymes-changed', reason: 'imported' });
+  res.status(201).json({ created: createdCount });
+});
+
 app.put('/api/rhymes/:id', async (req, res) => {
   const existing = rhymes.get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Rimmet hittades inte' });
@@ -305,6 +340,9 @@ app.put('/api/rhymes/:id', async (req, res) => {
     ...('language' in body ? { language: body.language } : {}),
     ...('type' in body ? { type: body.type } : {}),
     ...('words' in body ? { words: Array.isArray(body.words) ? body.words.map(w => String(w).trim()).filter(Boolean) : existing.words } : {}),
+    ...('phrases' in body ? { phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [] } : {}),
+    ...('tags' in body ? { tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [] } : {}),
+    ...('favorite' in body ? { favorite: !!body.favorite } : {}),
     ...('notes' in body ? { notes: body.notes } : {}),
     ...('songUsage' in body ? { songUsage: Array.isArray(body.songUsage) ? body.songUsage : [] } : {}),
     updatedAt: new Date().toISOString(),

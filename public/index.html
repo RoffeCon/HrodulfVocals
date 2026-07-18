@@ -285,6 +285,7 @@ Det var en [C]gång i [G]tiden
           <option value="sv">Svenska</option>
           <option value="en">Engelska</option>
           <option value="fr">Franska</option>
+          <option value="de">Tyska</option>
           <option value="other">Annat</option>
         </select>
         <select id="rhymeType">
@@ -295,15 +296,46 @@ Det var en [C]gång i [G]tiden
           <option value="alliteration">Allitteration</option>
         </select>
       </div>
+      <input id="rhymePhrases" type="text" placeholder="Frasexempel, kommaseparerat (t.ex. petit noir, petit café)">
+      <input id="rhymeTags" type="text" placeholder="Taggar, kommaseparerat (t.ex. poetiskt, slang, metal)">
       <input id="rhymeNotes" type="text" placeholder="Anteckning (valfritt)">
+      <label class="enter-toggle" style="margin:2px 0 8px;"><input type="checkbox" id="rhymeFavorite"> ⭐ Favorit</label>
       <div class="rhyme-add-row">
         <button class="btn btn-ghost" id="cancelRhymeEdit" type="button" hidden>Avbryt</button>
         <button class="btn btn-accent btn-wide" id="addRhymeBtn" type="button">+ Lägg till rim</button>
       </div>
     </div>
 
+    <button class="btn btn-tiny" id="showRhymeImport" type="button" style="margin-bottom:10px;">Importera JSON</button>
+    <div id="rhymeImportBox" class="rhyme-add" hidden>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">
+        Förväntat format: en lista av objekt, t.ex.<br>
+        <code>[{"words":["hus","mus"],"language":"sv","type":"simple"}]</code><br>
+        Saknar en post språk används språket du väljer nedan.
+      </div>
+      <textarea id="rhymeImportText" class="body-textarea" style="min-height:120px;" placeholder='[{"words":["hus","mus","ljus"],"type":"simple"}]'></textarea>
+      <div class="rhyme-add-row">
+        <select id="rhymeImportLanguage">
+          <option value="sv">Standardspråk: Svenska</option>
+          <option value="en">Standardspråk: Engelska</option>
+          <option value="fr">Standardspråk: Franska</option>
+          <option value="de">Standardspråk: Tyska</option>
+          <option value="other">Standardspråk: Annat</option>
+        </select>
+        <button class="btn btn-accent" id="runRhymeImportBtn" type="button">Importera</button>
+      </div>
+    </div>
+
     <div class="rhyme-filter-row">
       <input id="rhymeSearch" type="search" placeholder="Filtrera ord/fraser…">
+      <select id="rhymeFilterLanguage">
+        <option value="">Alla språk</option>
+        <option value="sv">Svenska</option>
+        <option value="en">Engelska</option>
+        <option value="fr">Franska</option>
+        <option value="de">Tyska</option>
+        <option value="other">Annat</option>
+      </select>
       <select id="rhymeFilterType">
         <option value="">Alla typer</option>
         <option value="simple">Enkelt</option>
@@ -313,6 +345,24 @@ Det var en [C]gång i [G]tiden
         <option value="alliteration">Allitteration</option>
       </select>
     </div>
+    <label class="enter-toggle" style="margin:0 0 8px;"><input type="checkbox" id="rhymeFavoritesOnly"> ⭐ Bara favoriter</label>
+
+    <div id="rhymeBulkBar" class="rhyme-bulk-bar" hidden>
+      <span id="rhymeBulkCount"></span>
+      <select id="rhymeBulkLanguage">
+        <option value="">Sätt språk…</option>
+        <option value="sv">Svenska</option>
+        <option value="en">Engelska</option>
+        <option value="fr">Franska</option>
+        <option value="de">Tyska</option>
+        <option value="other">Annat</option>
+      </select>
+      <input id="rhymeBulkTag" type="text" placeholder="+ tagg" style="width:70px;">
+      <button class="btn btn-tiny" id="rhymeBulkAddTag" type="button">Lägg till</button>
+      <button class="btn btn-tiny btn-danger" id="rhymeBulkDelete" type="button">Radera markerade</button>
+      <button class="btn btn-tiny" id="rhymeBulkClear" type="button">Avmarkera</button>
+    </div>
+    <label class="enter-toggle" style="margin:0 0 8px;"><input type="checkbox" id="rhymeSelectAll"> Markera alla (filtrerade)</label>
     <ul id="rhymeList" class="rhyme-list"></ul>
 
     <hr>

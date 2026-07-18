@@ -1,4 +1,4 @@
-const CACHE = 'lyricsmaster-shell-v1';
+const CACHE = 'lyricsmaster-shell-v2';
 const SHELL = [
   '/',
   '/index.html',
