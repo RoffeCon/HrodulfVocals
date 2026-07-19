@@ -1,4 +1,4 @@
-const CACHE = 'lyricsmaster-shell-v3';
+const CACHE = 'lyricsmaster-shell-v5';
 const SHELL = [
   '/',
   '/index.html',
@@ -7,6 +7,8 @@ const SHELL = [
   '/chordpro.js',
   '/manifest.json',
   '/icons/icon-192.png',
+  '/display.html',
+  '/display.js',
 ];
 
 self.addEventListener('install', (evt) => {

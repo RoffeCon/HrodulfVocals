@@ -23,12 +23,13 @@
   <!-- Toppfält -->
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">♪</span>
+      <img src="icons/icon-192.png" alt="LyricsMaster" class="brand-logo">
       <span class="brand-name">LyricsMaster</span>
       <span class="conn-dot" id="connDot" title="Anslutning"></span>
     </div>
     <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="library">Bibliotek</button>
+      <button class="tab active" data-view="dashboard">🏠</button>
+      <button class="tab" data-view="library">Bibliotek</button>
       <button class="tab" data-view="setlists">Setlistor</button>
     </nav>
     <button class="btn btn-ghost btn-icon" id="infoToggle" title="Anslutning &amp; backup">ⓘ</button>
@@ -36,8 +37,43 @@
     <button class="btn btn-ghost btn-icon" id="themeToggle" title="Växla ljust/mörkt läge">◐</button>
   </header>
 
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="view active">
+    <div class="dashboard-hero">
+      <img src="icons/icon-192.png" alt="LyricsMaster" class="dashboard-logo">
+      <h1>LyricsMaster</h1>
+      <p>Find. Rhyme. Create.</p>
+    </div>
+    <div class="dashboard-grid">
+      <button class="dashboard-tile" data-view="library" type="button">
+        <span class="tile-icon">📚</span>
+        <span class="tile-title">Bibliotek</span>
+        <span class="tile-sub">Låtar, text &amp; ackord, versioner</span>
+      </button>
+      <button class="dashboard-tile" data-view="setlists" type="button">
+        <span class="tile-icon">📋</span>
+        <span class="tile-title">Setlistor</span>
+        <span class="tile-sub">Bygg spellistor, gruppera, skriv ut</span>
+      </button>
+      <button class="dashboard-tile" id="dashboardRhymeTile" type="button">
+        <span class="tile-icon">✎</span>
+        <span class="tile-title">Rimlexikon</span>
+        <span class="tile-sub">Sök rim, hantera din ordlista</span>
+      </button>
+      <button class="dashboard-tile disabled" type="button" disabled>
+        <span class="tile-icon">🎒</span>
+        <span class="tile-title">Utrustning</span>
+        <span class="tile-sub">Kommer snart - packlistor för gig</span>
+      </button>
+    </div>
+    <p class="dashboard-display-hint">
+      Vill du visa "Nu spelas"-läget på en andra skärm (t.ex. en Raspberry Pi i replokalen)?
+      Öppna <code id="dashboardDisplayUrl">/display.html</code> i en webbläsare på den skärmen.
+    </p>
+  </section>
+
   <!-- BIBLIOTEK -->
-  <section id="view-library" class="view active">
+  <section id="view-library" class="view">
     <div class="toolbar">
       <input id="songSearch" type="search" placeholder="Sök titel, kompositör, tagg…" autocomplete="off">
       <button class="btn btn-tiny" id="importBtn">Importera</button>
@@ -96,6 +132,8 @@ Text till nästa låt här..."></textarea>
       <button class="btn btn-ghost" id="editorBack">← Tillbaka</button>
       <div class="editor-actions">
         <button class="btn btn-tiny" id="newVersionBtn" hidden>+ Ny version</button>
+        <button class="btn btn-tiny" id="linkVersionBtn" hidden>🔗 Länka som version av…</button>
+        <button class="btn btn-tiny" id="unlinkVersionBtn" hidden>Koppla loss från version</button>
         <button class="btn btn-tiny" id="exportBtn">Exportera</button>
         <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
         <button class="btn btn-accent" id="saveSongBtn">Spara</button>
@@ -288,6 +326,18 @@ Det var en [C]gång i [G]tiden
   </div>
 </div>
 
+<div id="linkVersionModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>Länka som version av…</h3>
+    <p style="font-size:13px;color:var(--text-dim);">Välj vilken låt den här ska bli en version av. Båda får då gemensamma versionsflikar.</p>
+    <input id="linkVersionSearch" type="search" placeholder="Sök låt…" style="margin-bottom:10px;">
+    <ul id="linkVersionList" class="song-list compact" style="max-height:300px;overflow-y:auto;"></ul>
+    <div class="practice-btn-row">
+      <button class="btn btn-ghost" id="closeLinkVersion" type="button">Avbryt</button>
+    </div>
+  </div>
+</div>
+
 <div id="exportModal" class="modal" hidden>
   <div class="modal-card">
     <h3>Exportera</h3>
@@ -352,34 +402,27 @@ Det var en [C]gång i [G]tiden
 
     <div id="rhymeEditPane" class="rhyme-pane" hidden>
       <div class="rhyme-add">
-        <div id="rhymeFormTitle" style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">Nytt rim</div>
-        <input id="rhymeWords" type="text" placeholder="Ord/fraser, kommaseparerat (t.ex. skratta, katta, hatta)">
+        <div id="rhymeFormTitle" style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">Nytt ord</div>
         <div class="rhyme-add-row">
-          <select id="rhymeLanguage">
+          <input id="rhymeWordText" type="text" placeholder="Ord eller fras, t.ex. cat">
+          <input id="rhymeWordSyllables" type="number" min="1" max="20" placeholder="Stavelser" style="max-width:90px;">
+        </div>
+        <div class="rhyme-add-row">
+          <select id="rhymeWordLanguage">
             <option value="sv">Svenska</option>
             <option value="en">Engelska</option>
             <option value="fr">Franska</option>
             <option value="de">Tyska</option>
             <option value="other">Annat</option>
           </select>
-          <select id="rhymeType">
-            <option value="simple">Enkelt rim</option>
-            <option value="multisyllable">Flerstavigt rim</option>
-            <option value="phrase">Frasrim (flera ord)</option>
-            <option value="assonance">Assonans</option>
-            <option value="alliteration">Allitteration</option>
-          </select>
         </div>
+        <input id="rhymeWordPhrases" type="text" placeholder="Frasexempel, kommaseparerat">
+        <input id="rhymeWordTags" type="text" placeholder="Taggar, kommaseparerat (t.ex. poetiskt, slang, metal)">
+        <input id="rhymeWordNotes" type="text" placeholder="Anteckning (valfritt)">
+        <label class="enter-toggle" style="margin:2px 0 8px;"><input type="checkbox" id="rhymeWordFavorite"> ⭐ Favorit</label>
         <div class="rhyme-add-row">
-          <input id="rhymePhrases" type="text" placeholder="Frasexempel, kommaseparerat">
-          <input id="rhymeSyllables" type="number" min="1" max="20" placeholder="Stavelser" style="max-width:90px;">
-        </div>
-        <input id="rhymeTags" type="text" placeholder="Taggar, kommaseparerat (t.ex. poetiskt, slang, metal)">
-        <input id="rhymeNotes" type="text" placeholder="Anteckning (valfritt)">
-        <label class="enter-toggle" style="margin:2px 0 8px;"><input type="checkbox" id="rhymeFavorite"> ⭐ Favorit</label>
-        <div class="rhyme-add-row">
-          <button class="btn btn-ghost" id="cancelRhymeEdit" type="button" hidden>Avbryt</button>
-          <button class="btn btn-accent btn-wide" id="addRhymeBtn" type="button">+ Lägg till rim</button>
+          <button class="btn btn-ghost" id="cancelRhymeWordEdit" type="button" hidden>Avbryt</button>
+          <button class="btn btn-accent btn-wide" id="addRhymeWordBtn" type="button">+ Lägg till ord</button>
         </div>
       </div>
 
@@ -389,11 +432,10 @@ Det var en [C]gång i [G]tiden
       </div>
       <div id="rhymeImportBox" class="rhyme-add" hidden>
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">
-          Förväntat format: en lista av objekt, t.ex.<br>
-          <code>[{"words":["hus","mus"],"language":"sv","type":"simple"}]</code><br>
-          Saknar en post språk används språket du väljer nedan.
+          Förväntat format: en lista av ord (strängar) eller objekt, t.ex.<br>
+          <code>["cat","hat","fat"]</code> eller <code>[{"text":"cat","syllables":1}]</code>
         </div>
-        <textarea id="rhymeImportText" class="body-textarea" style="min-height:120px;" placeholder='[{"words":["hus","mus","ljus"],"type":"simple"}]'></textarea>
+        <textarea id="rhymeImportText" class="body-textarea" style="min-height:120px;" placeholder='["cat","hat","fat","sat"]'></textarea>
         <div class="rhyme-add-row">
           <select id="rhymeImportLanguage">
             <option value="sv">Standardspråk: Svenska</option>
@@ -407,7 +449,7 @@ Det var en [C]gång i [G]tiden
       </div>
 
       <div class="rhyme-filter-row">
-        <input id="rhymeSearch" type="search" placeholder="Filtrera ord/fraser…">
+        <input id="rhymeSearch" type="search" placeholder="Filtrera ord…">
         <select id="rhymeFilterLanguage">
           <option value="">Alla språk</option>
           <option value="sv">Svenska</option>
@@ -416,19 +458,13 @@ Det var en [C]gång i [G]tiden
           <option value="de">Tyska</option>
           <option value="other">Annat</option>
         </select>
-        <select id="rhymeFilterType">
-          <option value="">Alla typer</option>
-          <option value="simple">Enkelt</option>
-          <option value="multisyllable">Flerstavigt</option>
-          <option value="phrase">Fras</option>
-          <option value="assonance">Assonans</option>
-          <option value="alliteration">Allitteration</option>
-        </select>
       </div>
       <label class="enter-toggle" style="margin:0 0 8px;"><input type="checkbox" id="rhymeFavoritesOnly"> ⭐ Bara favoriter</label>
 
       <div id="rhymeBulkBar" class="rhyme-bulk-bar" hidden>
         <span id="rhymeBulkCount"></span>
+        <input id="rhymeBulkSyllables" type="number" min="1" max="20" placeholder="Stavelser" style="width:66px;">
+        <button class="btn btn-tiny" id="rhymeBulkSetSyllables" type="button">Sätt</button>
         <select id="rhymeBulkLanguage">
           <option value="">Sätt språk…</option>
           <option value="sv">Svenska</option>
@@ -439,11 +475,29 @@ Det var en [C]gång i [G]tiden
         </select>
         <input id="rhymeBulkTag" type="text" placeholder="+ tagg" style="width:70px;">
         <button class="btn btn-tiny" id="rhymeBulkAddTag" type="button">Lägg till</button>
+        <button class="btn btn-tiny btn-accent" id="rhymeBulkCreateLink" type="button">🔗 Rimmar med varandra…</button>
         <button class="btn btn-tiny btn-danger" id="rhymeBulkDelete" type="button">Radera markerade</button>
         <button class="btn btn-tiny" id="rhymeBulkClear" type="button">Avmarkera</button>
       </div>
       <label class="enter-toggle" style="margin:0 0 8px;"><input type="checkbox" id="rhymeSelectAll"> Markera alla (filtrerade)</label>
-      <ul id="rhymeList" class="rhyme-list"></ul>
+      <ul id="rhymeWordList" class="rhyme-list"></ul>
+
+      <hr>
+      <h4 style="margin-bottom:8px;">Rimkopplingar</h4>
+      <ul id="rhymeLinkList" class="rhyme-list"></ul>
+    </div>
+  </div>
+</div>
+
+<div id="rhymeLinkTypeModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>Vilken typ av rim?</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);">Kryssa i en eller flera - ett rim kan vara flera typer samtidigt (t.ex. både perfekt och allitteration).</p>
+    <div id="rhymeLinkTypeChecks" class="rhyme-type-checks"></div>
+    <input id="rhymeLinkNotes" type="text" placeholder="Anteckning (valfritt)" style="margin-top:10px;">
+    <div class="practice-btn-row">
+      <button class="btn btn-ghost" id="cancelRhymeLinkType" type="button">Avbryt</button>
+      <button class="btn btn-accent" id="confirmRhymeLinkType" type="button">Skapa koppling</button>
     </div>
   </div>
 </div>

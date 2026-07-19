@@ -281,6 +281,44 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Nytt i denna omgång (Önskelista 4)
+
+- **Buggfix: kunde inte växla mellan låtversioner.** Om du skapade två versioner som två
+  separata låtar (istället för via "+ Ny version") delade de aldrig samma grupp-id, så det
+  fanns ingen väg att koppla ihop dem. Ny knapp i editorn: **🔗 Länka som version av…** - välj
+  vilken låt den ska bli en version av, så får båda gemensamma versionsflikar. Det går också
+  att koppla loss igen om du länkat fel. En mindre bugg fixades på kuppen: artist-fältet
+  kopierades inte med när en ny version skapades via "+ Ny version".
+- **Rimlexikonet omarbetat i grunden.** Istället för ordgrupper med en gemensam typ hanteras nu
+  varje ord som en egen post (med eget stavelseantal, taggar, favorit osv), och rim mellan ord
+  uttrycks som separata **kopplingar** som kan ha flera typer samtidigt (t.ex. både perfekt rim
+  OCH allitteration för "sat"/"spat"). Markera flera ord i listan → "🔗 Rimmar med varandra…" →
+  kryssa i vilka typer det gäller. Sökläget grupperar nu resultat efter stavelseantal (alla
+  enstaviga rim på "cat" överst, sen tvåstaviga, osv). Gammal data migreras automatiskt vid
+  första starten efter uppdateringen.
+- **`DEVELOPMENT.md`** - en teknisk sammanfattning av hela appens arkitektur och historik, så
+  utvecklingen går att återuppta även om sammanhanget (t.ex. en Claude-konversation) skulle
+  tappas bort. Uppdateras i slutet av varje större utvecklingsomgång.
+
+## Nytt i denna omgång (Önskelista 3)
+
+- **Dashboard** - appen öppnas nu i en startvy med stora plattor för varje modul (Bibliotek,
+  Setlistor, Rimlexikon, och en gråmarkerad "Utrustning" för framtiden). 🏠-fliken i toppen tar
+  dig tillbaka dit när du vill, men du behöver aldrig gå via den för att växla - flikarna
+  Bibliotek/Setlistor och ✎-knappen för rimlexikonet fungerar som förut, från vilken vy som helst.
+- **Rimlexikon som egen modul** - dashboardens ruta öppnar panelen direkt i **Hantera**-läget
+  (den mer omfattande vyn), medan ✎-knappen i toppfältet fortfarande öppnar det snabba
+  **Sök**-läget som standard när du bara vill slå upp ett rim medan du skriver.
+- **Andra skärmen (`/display.html`)** - en helt egen, enkel sida byggd för en TV eller skärm
+  kopplad till t.ex. en Raspberry Pi i replokalen. Visar "Nu spelas" och "Nästa" i stora
+  bokstäver, med eventuell grupprubrik (t.ex. tonart/stämning) som en tagg. Uppdateras live via
+  websocket så fort du bläddrar i scenläget på telefonen - ingen omladdning behövs. Adressen
+  visas på dashboarden, eller gå till `http://<telefonens-ip>:8420/display.html` i vilken
+  webbläsare som helst på samma nätverk.
+  - Displayen är helt passiv (bara visning) - all styrning sker som förut från telefonens
+    scenläge. Startar du en låt inom en setlista skickas det automatiskt till displayen; går
+    du tillbaka till biblioteket utan setlista-koppling återgår displayen till vänteläge.
+
 ## Nytt i denna omgång (Önskelista 2)
 
 - **Ny logotyp** - din egen L/M-emblem, både som appikon och i en fullständig banner

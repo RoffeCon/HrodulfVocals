@@ -11,7 +11,41 @@ const DATA_DIR = path.join(__dirname, 'data');
 
 const songs = new JsonStore('songs.json', DATA_DIR);
 const setlists = new JsonStore('setlists.json', DATA_DIR);
-const rhymes = new JsonStore('rhymes.json', DATA_DIR);
+const rhymes = new JsonStore('rhymes.json', DATA_DIR); // gammal modell, kvar bara för engångsmigrering
+const rhymeWords = new JsonStore('rhymeWords.json', DATA_DIR);
+const rhymeLinks = new JsonStore('rhymeLinks.json', DATA_DIR);
+
+// Engångsmigrering: gamla rim (ordgrupper) -> enskilda ord + länkar. Körs bara om det
+// finns gammal data och den nya databasen fortfarande är tom.
+async function migrateOldRhymes() {
+  const old = rhymes.all();
+  if (!old.length || rhymeWords.all().length || rhymeLinks.all().length) return;
+  const now = new Date().toISOString();
+  for (const entry of old) {
+    const wordIds = [];
+    for (const text of entry.words || []) {
+      let word = rhymeWords.all().find(w => w.text.toLowerCase() === text.toLowerCase() && w.language === (entry.language || 'sv'));
+      if (!word) {
+        word = {
+          id: makeId(), text, language: entry.language || 'sv', syllables: entry.syllables || null,
+          tags: entry.tags || [], phrases: entry.phrases || [], favorite: !!entry.favorite,
+          notes: '', songUsage: entry.songUsage || [], createdAt: now, updatedAt: now,
+        };
+        await rhymeWords.insert(word);
+      }
+      wordIds.push(word.id);
+    }
+    if (wordIds.length >= 2) {
+      const legacyTypeMap = { simple: 'perfect', multisyllable: 'perfect', phrase: 'other', assonance: 'assonance', alliteration: 'alliteration' };
+      const mappedType = legacyTypeMap[entry.type] || 'perfect';
+      await rhymeLinks.insert({
+        id: makeId(), wordIds, types: [mappedType], notes: entry.notes || '',
+        createdAt: now, updatedAt: now,
+      });
+    }
+  }
+  console.log(`  Migrerade ${old.length} gamla rim till det nya ord/länk-formatet.`);
+}
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -139,6 +173,35 @@ app.put('/api/songs/:id', async (req, res) => {
 });
 
 // Skapar en ny version av en befintlig låt: samma groupId, kopierad text/metadata som startpunkt.
+// Länkar en befintlig låt som en version av en annan - för när två låtar skapats
+// oberoende av varandra (t.ex. via "+ Ny låt" två gånger) istället för via
+// "+ Ny version", och därför saknar gemensamt groupId.
+app.post('/api/songs/:id/link-version', async (req, res) => {
+  const src = songs.get(req.params.id);
+  const targetId = req.body && req.body.targetId;
+  if (!src) return res.status(404).json({ error: 'Låten hittades inte' });
+  const target = targetId && songs.get(targetId);
+  if (!target) return res.status(400).json({ error: 'Måltåten hittades inte' });
+  if (target.id === src.id) return res.status(400).json({ error: 'Kan inte länka en låt till sig själv' });
+
+  const groupId = target.groupId || target.id;
+  if (!target.groupId) await songs.update(target.id, { groupId });
+  const siblingCount = songs.all().filter(s => (s.groupId || s.id) === groupId && s.id !== src.id).length;
+  const versionLabel = (src.versionLabel && src.versionLabel !== 'V1') ? src.versionLabel : `V${siblingCount + 1}`;
+  const updated = await songs.update(src.id, { groupId, versionLabel, updatedAt: new Date().toISOString() });
+  broadcast({ type: 'songs-changed', reason: 'linked', id: updated.id });
+  res.json(updated);
+});
+
+// Kopplar loss en låt från sin versionsgrupp igen (om man länkat fel).
+app.post('/api/songs/:id/unlink-version', async (req, res) => {
+  const src = songs.get(req.params.id);
+  if (!src) return res.status(404).json({ error: 'Låten hittades inte' });
+  const updated = await songs.update(src.id, { groupId: src.id, versionLabel: 'V1', updatedAt: new Date().toISOString() });
+  broadcast({ type: 'songs-changed', reason: 'unlinked', id: updated.id });
+  res.json(updated);
+});
+
 app.post('/api/songs/:id/version', async (req, res) => {
   const src = songs.get(req.params.id);
   if (!src) return res.status(404).json({ error: 'Låten hittades inte' });
@@ -150,6 +213,7 @@ app.post('/api/songs/:id/version', async (req, res) => {
     id: makeId(),
     title: src.title,
     composer: src.composer,
+    artist: src.artist,
     key: src.key,
     capo: src.capo,
     tempo: src.tempo,
@@ -273,95 +337,185 @@ app.delete('/api/setlists/:id', async (req, res) => {
 
 // ---------- Health / info ----------
 
-// ---------- Rimlexikon ----------
+// ---------- Rimlexikon (ord + kopplingar) ----------
+//
+// Varje ord är en egen post (med sitt eget stavelseantal, taggar, favorit osv), och
+// rim mellan ord uttrycks som separata "länkar" - en länk kopplar två eller fler ord
+// och kan ha flera typer samtidigt (t.ex. både perfekt rim OCH allitteration). Det gör
+// att "hat" kan vara perfekt rim med "cat/fat/sat" i en länk, och samtidigt assonans
+// med "rap" i en helt annan länk, utan att stavelseantalet för "hat" behöver upprepas
+// eller riskera hamna i otakt mellan de två.
 
-app.get('/api/rhymes', (req, res) => {
-  const list = rhymes.all().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-  res.json(list);
+const RHYME_TYPES = ['perfect', 'near', 'assonance', 'consonance', 'alliteration', 'other'];
+
+function sanitizeRhymeTypes(arr) {
+  const list = Array.isArray(arr) ? arr : [];
+  const filtered = list.filter(t => RHYME_TYPES.includes(t));
+  return filtered.length ? filtered : ['perfect'];
+}
+
+// -- Ord --
+
+app.get('/api/rhyme-words', (req, res) => {
+  res.json(rhymeWords.all().slice().sort((a, b) => a.text.localeCompare(b.text, 'sv')));
 });
 
-app.post('/api/rhymes', async (req, res) => {
+app.post('/api/rhyme-words', async (req, res) => {
   const body = req.body || {};
-  const words = Array.isArray(body.words) ? body.words.map(w => String(w).trim()).filter(Boolean) : [];
-  if (words.length < 2) return res.status(400).json({ error: 'Minst två ord eller fraser krävs' });
+  const text = String(body.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Ordet får inte vara tomt' });
   const now = new Date().toISOString();
-  const entry = {
+  const word = {
     id: makeId(),
+    text,
     language: body.language || 'sv',
-    type: body.type || 'simple',
-    words,
-    phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [],
-    tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [],
     syllables: body.syllables ? parseInt(body.syllables, 10) || null : null,
+    tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [],
+    phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [],
     favorite: !!body.favorite,
     notes: body.notes || '',
     songUsage: Array.isArray(body.songUsage) ? body.songUsage : [],
     createdAt: now,
     updatedAt: now,
   };
-  await rhymes.insert(entry);
-  broadcast({ type: 'rhymes-changed', reason: 'created', id: entry.id });
-  res.status(201).json(entry);
+  await rhymeWords.insert(word);
+  broadcast({ type: 'rhyme-words-changed', reason: 'created', id: word.id });
+  res.status(201).json(word);
 });
 
-// Massimport: respekterar språk per post om det finns i JSON:en, annars faller den
-// tillbaka på det språk som valdes i importformuläret.
-app.post('/api/rhymes/import', async (req, res) => {
+app.post('/api/rhyme-words/import', async (req, res) => {
   const body = req.body || {};
-  const items = Array.isArray(body.entries) ? body.entries : [];
+  const items = Array.isArray(body.words) ? body.words : [];
   const defaultLanguage = body.defaultLanguage || 'sv';
-  if (!items.length) return res.status(400).json({ error: 'Inga rim att importera' });
+  if (!items.length) return res.status(400).json({ error: 'Inga ord att importera' });
   const now = new Date().toISOString();
-  let createdCount = 0;
+  let created = 0;
   for (const raw of items) {
-    const words = Array.isArray(raw.words) ? raw.words.map(w => String(w).trim()).filter(Boolean) : [];
-    if (words.length < 2) continue;
-    const entry = {
+    // Stödjer både enkla textsträngar och objekt med fler fält
+    const obj = typeof raw === 'string' ? { text: raw } : (raw || {});
+    const text = String(obj.text || '').trim();
+    if (!text) continue;
+    const word = {
       id: makeId(),
-      language: raw.language || defaultLanguage,
-      type: raw.type || 'simple',
-      words,
-      phrases: Array.isArray(raw.phrases) ? raw.phrases.map(p => String(p).trim()).filter(Boolean) : [],
-      tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : [],
-      syllables: raw.syllables ? parseInt(raw.syllables, 10) || null : null,
-      favorite: !!raw.favorite,
-      notes: raw.notes || '',
+      text,
+      language: obj.language || defaultLanguage,
+      syllables: obj.syllables ? parseInt(obj.syllables, 10) || null : null,
+      tags: Array.isArray(obj.tags) ? obj.tags.map(t => String(t).trim()).filter(Boolean) : [],
+      phrases: Array.isArray(obj.phrases) ? obj.phrases.map(p => String(p).trim()).filter(Boolean) : [],
+      favorite: !!obj.favorite,
+      notes: obj.notes || '',
       songUsage: [],
       createdAt: now,
       updatedAt: now,
     };
-    await rhymes.insert(entry);
-    createdCount++;
+    await rhymeWords.insert(word);
+    created++;
   }
-  if (createdCount) broadcast({ type: 'rhymes-changed', reason: 'imported' });
-  res.status(201).json({ created: createdCount });
+  if (created) broadcast({ type: 'rhyme-words-changed', reason: 'imported' });
+  res.status(201).json({ created });
 });
 
-app.put('/api/rhymes/:id', async (req, res) => {
-  const existing = rhymes.get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Rimmet hittades inte' });
+// Massuppdatering - t.ex. sätt samma stavelseantal eller lägg till en tagg på flera
+// markerade ord på en gång.
+app.post('/api/rhyme-words/bulk', async (req, res) => {
+  const body = req.body || {};
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  const patch = body.patch || {};
+  if (!ids.length) return res.status(400).json({ error: 'Inga ord markerade' });
+  let count = 0;
+  for (const id of ids) {
+    const existing = rhymeWords.get(id);
+    if (!existing) continue;
+    const upd = { updatedAt: new Date().toISOString() };
+    if ('syllables' in patch) upd.syllables = patch.syllables ? parseInt(patch.syllables, 10) || null : null;
+    if ('language' in patch) upd.language = patch.language;
+    if ('favorite' in patch) upd.favorite = !!patch.favorite;
+    if (patch.addTag) upd.tags = Array.from(new Set([...(existing.tags || []), String(patch.addTag).trim()]));
+    await rhymeWords.update(id, upd);
+    count++;
+  }
+  if (count) broadcast({ type: 'rhyme-words-changed', reason: 'bulk-updated' });
+  res.json({ updated: count });
+});
+
+app.put('/api/rhyme-words/:id', async (req, res) => {
+  const existing = rhymeWords.get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Ordet hittades inte' });
   const body = req.body || {};
   const patch = {
+    ...('text' in body && body.text.trim() ? { text: body.text.trim() } : {}),
     ...('language' in body ? { language: body.language } : {}),
-    ...('type' in body ? { type: body.type } : {}),
-    ...('words' in body ? { words: Array.isArray(body.words) ? body.words.map(w => String(w).trim()).filter(Boolean) : existing.words } : {}),
-    ...('phrases' in body ? { phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [] } : {}),
-    ...('tags' in body ? { tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [] } : {}),
     ...('syllables' in body ? { syllables: body.syllables ? parseInt(body.syllables, 10) || null : null } : {}),
+    ...('tags' in body ? { tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [] } : {}),
+    ...('phrases' in body ? { phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [] } : {}),
     ...('favorite' in body ? { favorite: !!body.favorite } : {}),
     ...('notes' in body ? { notes: body.notes } : {}),
     ...('songUsage' in body ? { songUsage: Array.isArray(body.songUsage) ? body.songUsage : [] } : {}),
     updatedAt: new Date().toISOString(),
   };
-  const updated = await rhymes.update(req.params.id, patch);
-  broadcast({ type: 'rhymes-changed', reason: 'updated', id: updated.id });
+  const updated = await rhymeWords.update(req.params.id, patch);
+  broadcast({ type: 'rhyme-words-changed', reason: 'updated', id: updated.id });
   res.json(updated);
 });
 
-app.delete('/api/rhymes/:id', async (req, res) => {
-  const ok = await rhymes.remove(req.params.id);
-  if (!ok) return res.status(404).json({ error: 'Rimmet hittades inte' });
-  broadcast({ type: 'rhymes-changed', reason: 'deleted', id: req.params.id });
+app.delete('/api/rhyme-words/:id', async (req, res) => {
+  const ok = await rhymeWords.remove(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Ordet hittades inte' });
+  // Städa bort ordet ur ev. länkar - och ta bort länkar som blir ensamma kvar (<2 ord).
+  for (const link of rhymeLinks.all()) {
+    if (!link.wordIds.includes(req.params.id)) continue;
+    const newWordIds = link.wordIds.filter(id => id !== req.params.id);
+    if (newWordIds.length < 2) await rhymeLinks.remove(link.id);
+    else await rhymeLinks.update(link.id, { wordIds: newWordIds, updatedAt: new Date().toISOString() });
+  }
+  broadcast({ type: 'rhyme-words-changed', reason: 'deleted', id: req.params.id });
+  broadcast({ type: 'rhyme-links-changed', reason: 'word-removed' });
+  res.status(204).end();
+});
+
+// -- Länkar (rimkopplingar mellan ord) --
+
+app.get('/api/rhyme-links', (req, res) => {
+  res.json(rhymeLinks.all().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')));
+});
+
+app.post('/api/rhyme-links', async (req, res) => {
+  const body = req.body || {};
+  const wordIds = Array.isArray(body.wordIds) ? [...new Set(body.wordIds)] : [];
+  if (wordIds.length < 2) return res.status(400).json({ error: 'Minst två ord krävs för en rimkoppling' });
+  const now = new Date().toISOString();
+  const link = {
+    id: makeId(),
+    wordIds,
+    types: sanitizeRhymeTypes(body.types),
+    notes: body.notes || '',
+    createdAt: now,
+    updatedAt: now,
+  };
+  await rhymeLinks.insert(link);
+  broadcast({ type: 'rhyme-links-changed', reason: 'created', id: link.id });
+  res.status(201).json(link);
+});
+
+app.put('/api/rhyme-links/:id', async (req, res) => {
+  const existing = rhymeLinks.get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Kopplingen hittades inte' });
+  const body = req.body || {};
+  const patch = {
+    ...('wordIds' in body && Array.isArray(body.wordIds) && body.wordIds.length >= 2 ? { wordIds: [...new Set(body.wordIds)] } : {}),
+    ...('types' in body ? { types: sanitizeRhymeTypes(body.types) } : {}),
+    ...('notes' in body ? { notes: body.notes } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+  const updated = await rhymeLinks.update(req.params.id, patch);
+  broadcast({ type: 'rhyme-links-changed', reason: 'updated', id: updated.id });
+  res.json(updated);
+});
+
+app.delete('/api/rhyme-links/:id', async (req, res) => {
+  const ok = await rhymeLinks.remove(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Kopplingen hittades inte' });
+  broadcast({ type: 'rhyme-links-changed', reason: 'deleted', id: req.params.id });
   res.status(204).end();
 });
 
@@ -406,6 +560,26 @@ app.get('/api/search/proximity', (req, res) => {
   res.json(results);
 });
 
+// ---------- Live-läge (för en andra skärm, t.ex. Raspberry Pi i replokalen) ----------
+// Ligger bara i minnet - helt flyktigt, ingen anledning att spara till disk.
+
+let liveState = { setlistId: null, songIndex: null, updatedAt: null };
+
+app.get('/api/live', (req, res) => {
+  res.json(liveState);
+});
+
+app.post('/api/live', (req, res) => {
+  const body = req.body || {};
+  liveState = {
+    setlistId: body.setlistId || null,
+    songIndex: (typeof body.songIndex === 'number') ? body.songIndex : null,
+    updatedAt: new Date().toISOString(),
+  };
+  broadcast({ type: 'live-changed', ...liveState });
+  res.json(liveState);
+});
+
 app.get('/api/info', (req, res) => {
   res.json({ name: 'LyricsMaster', version: '1.0.0', time: new Date().toISOString(), port: PORT, ips: localIPs() });
 });
@@ -432,18 +606,20 @@ function localIPs() {
   return out;
 }
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('');
-  console.log('  ♪ LyricsMaster körs nu ♪');
-  console.log('  ---------------------------------');
-  console.log(`  På telefonen:      http://localhost:${PORT}`);
-  const ips = localIPs();
-  if (ips.length) {
-    ips.forEach(ip => console.log(`  Från datorn (wifi): http://${ip}:${PORT}`));
-  } else {
-    console.log('  Ingen wifi-adress hittades - kontrollera att telefonen är ansluten till nätverket.');
-  }
-  console.log('  ---------------------------------');
-  console.log('  Avsluta med Ctrl+C');
-  console.log('');
+migrateOldRhymes().then(() => {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log('');
+    console.log('  ♪ LyricsMaster körs nu ♪');
+    console.log('  ---------------------------------');
+    console.log(`  På telefonen:      http://localhost:${PORT}`);
+    const ips = localIPs();
+    if (ips.length) {
+      ips.forEach(ip => console.log(`  Från datorn (wifi): http://${ip}:${PORT}`));
+    } else {
+      console.log('  Ingen wifi-adress hittades - kontrollera att telefonen är ansluten till nätverket.');
+    }
+    console.log('  ---------------------------------');
+    console.log('  Avsluta med Ctrl+C');
+    console.log('');
+  });
 });
