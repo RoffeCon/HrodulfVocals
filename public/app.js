@@ -137,7 +137,9 @@
 
   function songRowHtml(s, { sub = false, expandable = false, expanded = false, versionCount = 0 } = {}) {
     const showNotes = document.getElementById('showNotesToggle').checked;
-    const subInfo = [s.composer, s.key, s.tempo && s.tempo + ' bpm'].filter(Boolean).map(escapeHtml).join(' · ');
+    const displayField = document.getElementById('listDisplayField').value;
+    const primaryInfo = displayField === 'artist' ? s.artist : s.composer;
+    const subInfo = [primaryInfo, s.key, s.tempo && s.tempo + ' bpm'].filter(Boolean).map(escapeHtml).join(' · ');
     const badge = sub
       ? `<span class="version-count-badge">${escapeHtml(s.versionLabel || '')}</span>`
       : (versionCount > 1 ? `<span class="version-count-badge">${versionCount} versioner</span>` : '');
@@ -207,6 +209,14 @@
   document.getElementById('songSearch').addEventListener('input', renderLibrary);
   document.getElementById('showNotesToggle').addEventListener('change', renderLibrary);
   document.getElementById('artistFilter').addEventListener('change', renderLibrary);
+  try {
+    const savedField = localStorage.getItem('songbook-list-display-field');
+    if (savedField) document.getElementById('listDisplayField').value = savedField;
+  } catch (_) {}
+  document.getElementById('listDisplayField').addEventListener('change', (e) => {
+    try { localStorage.setItem('songbook-list-display-field', e.target.value); } catch (_) {}
+    renderLibrary();
+  });
 
   function startInlineRename(row, id) {
     const song = state.songs.find(s => s.id === id);
@@ -267,6 +277,8 @@
     const input = document.getElementById('quickAddTitle');
     const title = input.value.trim();
     if (!title) return;
+    const dup = state.songs.find(s => s.title.trim().toLowerCase() === title.toLowerCase());
+    if (dup && !confirm(`"${title}" finns redan i biblioteket. Lägga till ändå (t.ex. som en ny version)?`)) return;
     try {
       await Songs.create({ title });
       input.value = '';
@@ -427,6 +439,10 @@
   document.getElementById('saveSongBtn').addEventListener('click', async () => {
     const title = document.getElementById('f-title').value.trim();
     if (!title) { toast('Titel krävs', true); return; }
+    if (!state.currentSongId) {
+      const dup = state.songs.find(s => s.title.trim().toLowerCase() === title.toLowerCase());
+      if (dup && !confirm(`"${title}" finns redan i biblioteket. Skapa ändå?`)) return;
+    }
     const data = {
       title,
       composer: document.getElementById('f-composer').value.trim(),
@@ -726,7 +742,7 @@
         <li class="reorder-row" data-idx="${i}">
           <span class="drag-handle" data-idx="${i}">⠿</span>
           <span class="reorder-index">${songNumber}</span>
-          <span class="reorder-title">${escapeHtml(s.title)}</span>
+          <span class="reorder-title" data-act="start" data-idx="${i}" data-song-index="${songNumber - 1}" style="cursor:pointer;">${escapeHtml(s.title)}</span>
           <span class="reorder-meta">${escapeHtml(s.key || '')}</span>
           <span class="reorder-btns">
             <button class="btn btn-tiny" data-act="up" data-idx="${i}" ${upDisabled}>▲</button>
@@ -774,6 +790,14 @@
     if (Number.isNaN(idx)) return;
     const act = e.target.dataset.act;
     const items = editingSetlist.items;
+    if (act === 'start') {
+      const songIndex = parseInt(e.target.dataset.songIndex, 10);
+      const songIds = deriveSongIds(items);
+      if (!songIds.length || Number.isNaN(songIndex)) return;
+      editingSetlist.songIds = songIds;
+      openViewer(songIds[songIndex], { setlist: editingSetlist, index: songIndex });
+      return;
+    }
     if (act === 'up' && idx > 0) {
       [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
     } else if (act === 'down' && idx < items.length - 1) {
@@ -883,6 +907,26 @@
     openViewer(songIds[0], { setlist: editingSetlist, index: 0 });
   });
 
+  function openPrintWindow(bodyHtml, title, extraStyle) {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+      <style>
+        body{font-family:Georgia,'Times New Roman',serif;max-width:720px;margin:40px auto;color:#161207;}
+        h1{margin-bottom:2px;} .meta{color:#666;margin-bottom:24px;}
+        h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:34px;page-break-after:avoid;}
+        .group{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#a06a1f;margin-top:30px;border-top:1px solid #eee;padding-top:10px;}
+        pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:13.5px;line-height:1.5;}
+        .songmeta{color:#666;font-size:13px;margin-bottom:8px;}
+        ol{padding-left:22px;} li{padding:4px 0;font-size:15px;}
+        ${extraStyle || ''}
+      </style></head><body>${bodyHtml}</body></html>`;
+    const win = window.open('', '_blank');
+    if (!win) { toast('Popup blockerad - tillåt popup-fönster för att skriva ut', true); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  }
+
   document.getElementById('printSetlistBtn').addEventListener('click', async () => {
     const items = editingSetlist.items;
     const songIds = deriveSongIds(items);
@@ -890,17 +934,7 @@
     try {
       const fullSongs = {};
       for (const id of songIds) fullSongs[id] = await Songs.get(id);
-      let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(editingSetlist.name || 'Setlista')}</title>
-        <style>
-          body{font-family:Georgia,'Times New Roman',serif;max-width:720px;margin:40px auto;color:#161207;}
-          h1{margin-bottom:2px;} .meta{color:#666;margin-bottom:24px;}
-          h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:34px;page-break-after:avoid;}
-          .group{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#a06a1f;margin-top:30px;border-top:1px solid #eee;padding-top:10px;}
-          pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:13.5px;line-height:1.5;}
-          .songmeta{color:#666;font-size:13px;margin-bottom:8px;}
-          @media print { .group, h2 { page-break-inside: avoid; } }
-        </style></head><body>`;
-      html += `<h1>${escapeHtml(editingSetlist.name || 'Setlista')}</h1>`;
+      let html = `<h1>${escapeHtml(editingSetlist.name || 'Setlista')}</h1>`;
       html += `<div class="meta">${[editingSetlist.venue, editingSetlist.date].filter(Boolean).map(escapeHtml).join(' · ')}</div>`;
       let n = 0;
       for (const item of items) {
@@ -910,20 +944,54 @@
           const s = fullSongs[item.songId];
           if (!s) continue;
           n++;
+          // Varje låt börjar på ett eget blad, utom den allra första.
+          html += `<div style="${n > 1 ? 'page-break-before:always;' : ''}">`;
           html += `<h2>${n}. ${escapeHtml(s.title)}</h2>`;
           const metaBits = [s.key, s.capo && ('Kapo ' + s.capo), s.tempo && (s.tempo + ' bpm')].filter(Boolean);
           if (metaBits.length) html += `<div class="songmeta">${escapeHtml(metaBits.join(' · '))}</div>`;
-          html += `<pre>${escapeHtml(s.text || '')}</pre>`;
+          html += `<pre>${escapeHtml(s.text || '')}</pre></div>`;
         }
       }
-      html += `</body></html>`;
-      const win = window.open('', '_blank');
-      if (!win) { toast('Popup blockerad - tillåt popup-fönster för att skriva ut', true); return; }
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 300);
+      openPrintWindow(html, editingSetlist.name || 'Setlista');
     } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('printSetlistTitlesBtn').addEventListener('click', async () => {
+    const items = editingSetlist.items;
+    const songIds = deriveSongIds(items);
+    if (!songIds.length) { toast('Lägg till minst en låt först', true); return; }
+    try {
+      const fullSongs = {};
+      for (const id of songIds) fullSongs[id] = await Songs.get(id);
+      let html = `<h1>${escapeHtml(editingSetlist.name || 'Setlista')}</h1>`;
+      html += `<div class="meta">${[editingSetlist.venue, editingSetlist.date].filter(Boolean).map(escapeHtml).join(' · ')}</div>`;
+      let n = 0;
+      let listOpen = false;
+      for (const item of items) {
+        if (item.kind === 'group') {
+          if (listOpen) { html += '</ol>'; listOpen = false; }
+          html += `<div class="group">${escapeHtml(item.label)}</div>`;
+        } else {
+          const s = fullSongs[item.songId];
+          if (!s) continue;
+          n++;
+          if (!listOpen) { html += '<ol>'; listOpen = true; }
+          const metaBits = [s.key, s.tempo && (s.tempo + ' bpm')].filter(Boolean);
+          html += `<li><strong>${escapeHtml(s.title)}</strong>${metaBits.length ? ' - ' + escapeHtml(metaBits.join(' · ')) : ''}</li>`;
+        }
+      }
+      if (listOpen) html += '</ol>';
+      openPrintWindow(html, (editingSetlist.name || 'Setlista') + ' - låtlista');
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('printSongBtn').addEventListener('click', () => {
+    const song = currentEditorSongSnapshot();
+    const metaBits = [song.composer, song.key, song.capo && ('Kapo ' + song.capo), song.tempo && (song.tempo + ' bpm'), song.timeSignature].filter(Boolean);
+    const html = `<h1>${escapeHtml(song.title)}</h1>
+      <div class="meta">${escapeHtml(metaBits.join(' · '))}</div>
+      <pre>${escapeHtml(song.text || '')}</pre>`;
+    openPrintWindow(html, song.title);
   });
 
   // ---------- Viewer / scenläge ----------
@@ -983,6 +1051,9 @@
       preferFlats,
     });
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
+    // scrollTop återställs inte automatiskt av webbläsaren bara för att innehållet
+    // byts ut - utan detta visas nästa låt "redan nerskrollad" (kvar på gamla positionen).
+    document.getElementById('songBody').scrollTop = 0;
 
     const nav = document.getElementById('setlistNav');
     if (state.viewer.setlistContext) {
@@ -999,6 +1070,7 @@
   document.getElementById('viewerBack').addEventListener('click', () => {
     releaseWakeLock();
     stopAutoscroll();
+    exitGigMode();
     if (state.viewer.setlistContext) {
       api('/api/live', { method: 'POST', body: JSON.stringify({ setlistId: null, songIndex: null }) }).catch(() => {});
     }
@@ -1065,6 +1137,7 @@
   function stopAutoscroll() {
     state.viewer.scrolling = false;
     document.getElementById('toggleScroll').textContent = 'Pausad';
+    document.getElementById('gigToggleScroll').textContent = 'Pausad';
     if (scrollRAF) cancelAnimationFrame(scrollRAF);
     scrollRAF = null;
     cancelScrollEndCountdown();
@@ -1073,6 +1146,7 @@
   function startAutoscroll() {
     state.viewer.scrolling = true;
     document.getElementById('toggleScroll').textContent = 'Rullar';
+    document.getElementById('gigToggleScroll').textContent = 'Rullar';
     document.getElementById('scrollEndBanner').hidden = true;
     const container = document.getElementById('songBody');
     let last = performance.now();
@@ -1128,11 +1202,20 @@
       text.textContent = `Nästa låt om ${secondsLeft}s…`;
       scrollEndCountdownInterval = setInterval(() => {
         secondsLeft--;
-        if (secondsLeft <= 0) { cancelScrollEndCountdown(); return; }
+        if (secondsLeft <= 0) {
+          // Bara den visuella nedräkningen ska stanna här - INTE anropa
+          // cancelScrollEndCountdown(), för den rensar även scrollEndTimer nedan,
+          // vilket avbröt själva bytet till nästa låt precis innan det skulle hända.
+          clearInterval(scrollEndCountdownInterval);
+          scrollEndCountdownInterval = null;
+          text.textContent = 'Byter låt…';
+          return;
+        }
         text.textContent = `Nästa låt om ${secondsLeft}s…`;
       }, 1000);
       scrollEndTimer = setTimeout(() => {
-        cancelScrollEndCountdown();
+        scrollEndTimer = null;
+        banner.hidden = true;
         stepSetlist(1);
       }, secondsLeft * 1000);
     }
@@ -1148,6 +1231,7 @@
   function setScrollSpeed(val) {
     state.viewer.scrollSpeed = Math.max(1, Math.min(20, val));
     document.getElementById('scrollSpeedVal').textContent = state.viewer.scrollSpeed;
+    document.getElementById('gigScrollVal').textContent = state.viewer.scrollSpeed;
     try { localStorage.setItem('songbook-scroll-speed', state.viewer.scrollSpeed); } catch (_) {}
   }
   document.getElementById('scrollSpeedUp').addEventListener('click', () => setScrollSpeed(state.viewer.scrollSpeed + 1));
@@ -1163,6 +1247,39 @@
   document.getElementById('scrollEndDelay').addEventListener('change', (e) => {
     try { localStorage.setItem('songbook-scroll-end-delay', e.target.value); } catch (_) {}
   });
+
+  // ---- Gigläge (helskärm, minimala kontroller) ----
+
+  document.getElementById('gigModeBtn').addEventListener('click', async () => {
+    const view = document.getElementById('view-viewer');
+    view.classList.add('gig-mode');
+    document.getElementById('gigModeControls').hidden = false;
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (_) {}
+  });
+
+  async function exitGigMode() {
+    document.getElementById('view-viewer').classList.remove('gig-mode');
+    document.getElementById('gigModeControls').hidden = true;
+    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (_) {}
+  }
+  document.getElementById('gigExitBtn').addEventListener('click', exitGigMode);
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      document.getElementById('view-viewer').classList.remove('gig-mode');
+      document.getElementById('gigModeControls').hidden = true;
+    }
+  });
+
+  document.getElementById('gigToggleScroll').addEventListener('click', () => {
+    if (state.viewer.scrolling) stopAutoscroll(); else startAutoscroll();
+  });
+  document.getElementById('gigScrollUp').addEventListener('click', () => setScrollSpeed(state.viewer.scrollSpeed + 1));
+  document.getElementById('gigScrollDown').addEventListener('click', () => setScrollSpeed(state.viewer.scrollSpeed - 1));
+  document.getElementById('gigSettingsBtn').addEventListener('click', () => {
+    const box = document.getElementById('scrollSettingsBox');
+    box.hidden = !box.hidden;
+  });
+
 
   loadScrollSettings();
 
@@ -1218,6 +1335,17 @@
   });
   document.getElementById('closeInfo').addEventListener('click', () => { document.getElementById('infoModal').hidden = true; });
 
+  document.getElementById('manualConnectBtn').addEventListener('click', () => {
+    let val = document.getElementById('manualConnectInput').value.trim();
+    if (!val) { toast('Skriv in en adress', true); return; }
+    val = val.replace(/^https?:\/\//, '');
+    if (!val.includes(':')) val += ':8420';
+    window.location.href = `http://${val}/`;
+  });
+  document.getElementById('manualConnectInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('manualConnectBtn').click(); }
+  });
+
   document.getElementById('downloadBackupBtn').addEventListener('click', async () => {
     try {
       const backup = await api('/api/backup');
@@ -1233,6 +1361,25 @@
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       toast('Backup nedladdad');
     } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('restoreBackupBtn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('restoreFileInput');
+    const file = fileInput.files[0];
+    if (!file) { toast('Välj en backupfil först', true); return; }
+    if (!confirm('Detta ersätter ALL nuvarande data (låtar, setlistor, rim) med innehållet i filen. Fortsätta?')) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const result = await api('/api/restore', { method: 'POST', body: JSON.stringify(data) });
+      toast(`Återställt: ${result.songs} låtar, ${result.setlists} setlistor, ${result.rhymeWords} rimord`);
+      document.getElementById('infoModal').hidden = true;
+      fileInput.value = '';
+      await loadSongs();
+      await loadSetlists();
+      await loadRhymes();
+      showView('dashboard');
+    } catch (e) { toast('Kunde inte återställa: ' + e.message, true); }
   });
 
   // ---------- Öva utantill (inlärningsläge) ----------
@@ -1859,7 +2006,7 @@
         method: 'POST',
         body: JSON.stringify({ words, defaultLanguage: document.getElementById('rhymeImportLanguage').value }),
       });
-      toast(`${result.created} ord importerade`);
+      toast(`${result.created} ord importerade${result.skipped ? `, ${result.skipped} dubbletter hoppades över` : ''}`);
       document.getElementById('rhymeImportText').value = '';
       document.getElementById('rhymeImportBox').hidden = true;
       await loadRhymes();

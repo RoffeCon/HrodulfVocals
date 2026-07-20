@@ -364,11 +364,14 @@ app.post('/api/rhyme-words', async (req, res) => {
   const body = req.body || {};
   const text = String(body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'Ordet får inte vara tomt' });
+  const language = body.language || 'sv';
+  const dup = rhymeWords.all().find(w => w.text.toLowerCase() === text.toLowerCase() && w.language === language);
+  if (dup) return res.status(409).json({ error: `"${text}" finns redan (${language})`, duplicateId: dup.id });
   const now = new Date().toISOString();
   const word = {
     id: makeId(),
     text,
-    language: body.language || 'sv',
+    language,
     syllables: body.syllables ? parseInt(body.syllables, 10) || null : null,
     tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [],
     phrases: Array.isArray(body.phrases) ? body.phrases.map(p => String(p).trim()).filter(Boolean) : [],
@@ -390,15 +393,19 @@ app.post('/api/rhyme-words/import', async (req, res) => {
   if (!items.length) return res.status(400).json({ error: 'Inga ord att importera' });
   const now = new Date().toISOString();
   let created = 0;
+  let skipped = 0;
   for (const raw of items) {
     // Stödjer både enkla textsträngar och objekt med fler fält
     const obj = typeof raw === 'string' ? { text: raw } : (raw || {});
     const text = String(obj.text || '').trim();
     if (!text) continue;
+    const language = obj.language || defaultLanguage;
+    const dup = rhymeWords.all().find(w => w.text.toLowerCase() === text.toLowerCase() && w.language === language);
+    if (dup) { skipped++; continue; }
     const word = {
       id: makeId(),
       text,
-      language: obj.language || defaultLanguage,
+      language,
       syllables: obj.syllables ? parseInt(obj.syllables, 10) || null : null,
       tags: Array.isArray(obj.tags) ? obj.tags.map(t => String(t).trim()).filter(Boolean) : [],
       phrases: Array.isArray(obj.phrases) ? obj.phrases.map(p => String(p).trim()).filter(Boolean) : [],
@@ -412,7 +419,7 @@ app.post('/api/rhyme-words/import', async (req, res) => {
     created++;
   }
   if (created) broadcast({ type: 'rhyme-words-changed', reason: 'imported' });
-  res.status(201).json({ created });
+  res.status(201).json({ created, skipped });
 });
 
 // Massuppdatering - t.ex. sätt samma stavelseantal eller lägg till en tagg på flera
@@ -589,9 +596,34 @@ app.get('/api/backup', (req, res) => {
   res.json({
     exportedAt: new Date().toISOString(),
     app: 'LyricsMaster',
+    version: 2,
     songs: songs.all(),
     setlists: setlists.all(),
-    rhymes: rhymes.all(),
+    rhymeWords: rhymeWords.all(),
+    rhymeLinks: rhymeLinks.all(),
+  });
+});
+
+// Återställer från en tidigare nedladdad backup. Ersätter ALL nuvarande data - klienten
+// ber om bekräftelse innan den anropar det här.
+app.post('/api/restore', async (req, res) => {
+  const body = req.body || {};
+  if (!Array.isArray(body.songs) || !Array.isArray(body.setlists)) {
+    return res.status(400).json({ error: 'Filen ser inte ut som en giltig LyricsMaster-backup' });
+  }
+  await songs.replaceAll(body.songs);
+  await setlists.replaceAll(body.setlists);
+  if (Array.isArray(body.rhymeWords)) await rhymeWords.replaceAll(body.rhymeWords);
+  if (Array.isArray(body.rhymeLinks)) await rhymeLinks.replaceAll(body.rhymeLinks);
+  broadcast({ type: 'songs-changed', reason: 'restored' });
+  broadcast({ type: 'setlists-changed', reason: 'restored' });
+  broadcast({ type: 'rhyme-words-changed', reason: 'restored' });
+  broadcast({ type: 'rhyme-links-changed', reason: 'restored' });
+  res.json({
+    songs: body.songs.length,
+    setlists: body.setlists.length,
+    rhymeWords: (body.rhymeWords || []).length,
+    rhymeLinks: (body.rhymeLinks || []).length,
   });
 });
 

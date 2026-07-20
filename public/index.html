@@ -33,7 +33,7 @@
       <button class="tab" data-view="setlists">Setlistor</button>
     </nav>
     <button class="btn btn-ghost btn-icon" id="infoToggle" title="Anslutning &amp; backup">ⓘ</button>
-    <button class="btn btn-ghost btn-icon" id="rhymeToggle" title="Rimlexikon">✎</button>
+    <button class="btn btn-ghost btn-icon" id="rhymeToggle" title="Rimlexikon"><img src="icons/rhyme-icon.png" alt="Rimlexikon" class="toolbar-icon"></button>
     <button class="btn btn-ghost btn-icon" id="themeToggle" title="Växla ljust/mörkt läge">◐</button>
   </header>
 
@@ -56,7 +56,7 @@
         <span class="tile-sub">Bygg spellistor, gruppera, skriv ut</span>
       </button>
       <button class="dashboard-tile" id="dashboardRhymeTile" type="button">
-        <span class="tile-icon">✎</span>
+        <img src="icons/rhyme-icon.png" alt="" class="tile-icon-img">
         <span class="tile-title">Rimlexikon</span>
         <span class="tile-sub">Sök rim, hantera din ordlista</span>
       </button>
@@ -88,6 +88,12 @@
       </select>
     </div>
     <label class="enter-toggle" style="margin:0 0 10px;"><input type="checkbox" id="showNotesToggle"> Visa anteckningar i listan</label>
+    <label class="enter-toggle" style="margin:0 0 10px;">Visa i listan:
+      <select id="listDisplayField" style="margin-left:6px;width:auto;padding:4px 8px;">
+        <option value="composer">Kompositör</option>
+        <option value="artist">Artist</option>
+      </select>
+    </label>
     <ul id="songList" class="song-list"></ul>
     <p id="libraryEmpty" class="empty-state" hidden>Inga låtar än. Tryck på <strong>+ Ny låt</strong> för att skriva din första.</p>
   </section>
@@ -135,6 +141,7 @@ Text till nästa låt här..."></textarea>
         <button class="btn btn-tiny" id="linkVersionBtn" hidden>🔗 Länka som version av…</button>
         <button class="btn btn-tiny" id="unlinkVersionBtn" hidden>Koppla loss från version</button>
         <button class="btn btn-tiny" id="exportBtn">Exportera</button>
+        <button class="btn btn-tiny" id="printSongBtn" type="button">🖨 Skriv ut</button>
         <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
         <button class="btn btn-accent" id="saveSongBtn">Spara</button>
       </div>
@@ -185,6 +192,7 @@ Det var en [C]gång i [G]tiden
       </div>
       <button class="btn btn-ghost" id="practiceFromViewer">Öva utantill</button>
       <button class="btn btn-ghost" id="editFromViewer">Redigera</button>
+      <button class="btn btn-ghost btn-icon" id="gigModeBtn" type="button" title="Helskärm (gigläge)">⛶</button>
     </div>
 
     <div class="viewer-controls">
@@ -237,6 +245,15 @@ Det var en [C]gång i [G]tiden
     </div>
 
     <div id="songBody" class="song-body"></div>
+
+    <div id="gigModeControls" class="gig-mode-controls" hidden>
+      <button class="btn btn-ghost btn-icon" id="gigExitBtn" type="button" title="Avsluta helskärm">✕</button>
+      <button class="btn btn-toggle" id="gigToggleScroll" type="button">Pausad</button>
+      <button class="btn btn-icon" id="gigScrollDown" type="button">−</button>
+      <span id="gigScrollVal">4</span>
+      <button class="btn btn-icon" id="gigScrollUp" type="button">+</button>
+      <button class="btn btn-icon" id="gigSettingsBtn" type="button" title="Inställningar">⚙</button>
+    </div>
   </section>
 
   <!-- ÖVA UTANTILL -->
@@ -305,7 +322,8 @@ Det var en [C]gång i [G]tiden
     </div>
 
     <div class="practice-btn-row">
-      <button class="btn btn-ghost" id="printSetlistBtn" type="button">🖨 Skriv ut setlista</button>
+      <button class="btn btn-ghost" id="printSetlistTitlesBtn" type="button">🖨 Skriv ut (bara titlar)</button>
+      <button class="btn btn-ghost" id="printSetlistBtn" type="button">🖨 Skriv ut (med text)</button>
     </div>
     <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>
   </section>
@@ -359,9 +377,20 @@ Det var en [C]gång i [G]tiden
     <div id="infoIpBox" style="font-size:13.5px;color:var(--text-dim);margin-bottom:14px;">Hämtar IP-adress…</div>
     <p style="font-size:12.5px;color:var(--text-dim);">Skriv in adressen ovan i en webbläsare på datorn (samma wifi-nätverk) för att redigera därifrån.</p>
     <hr>
+    <p style="font-size:13.5px;">Hittar den inte rätt adress (t.ex. efter ett bandbyte mellan 2,4/5GHz, eller på ett annat nätverk som replokalen)? Ange en adress manuellt:</p>
+    <div class="rhyme-add-row">
+      <input id="manualConnectInput" type="text" placeholder="t.ex. 192.168.1.50 eller 192.168.1.50:8420">
+      <button class="btn btn-tiny btn-accent" id="manualConnectBtn" type="button">Anslut</button>
+    </div>
     <p style="font-size:13.5px;">Ladda ner en fullständig backup av alla låtar, setlistor och rim som en JSON-fil.</p>
     <div class="practice-btn-row" style="justify-content:flex-start;">
       <button class="btn btn-accent" id="downloadBackupBtn" type="button">Ladda ner backup</button>
+    </div>
+    <hr>
+    <p style="font-size:13.5px;">Återställ från en tidigare nedladdad backupfil. <strong>Ersätter all nuvarande data</strong> - se till att du har en färsk backup av det du har nu innan du gör detta, om du ångrar dig.</p>
+    <input type="file" id="restoreFileInput" accept="application/json" style="margin-bottom:10px;">
+    <div class="practice-btn-row" style="justify-content:flex-start;">
+      <button class="btn btn-danger" id="restoreBackupBtn" type="button">Återställ från fil…</button>
     </div>
     <div class="practice-btn-row">
       <button class="btn btn-ghost" id="closeInfo" type="button">Stäng</button>

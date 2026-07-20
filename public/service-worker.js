@@ -1,4 +1,4 @@
-const CACHE = 'lyricsmaster-shell-v5';
+const CACHE = 'lyricsmaster-shell-v7';
 const SHELL = [
   '/',
   '/index.html',
@@ -33,17 +33,17 @@ self.addEventListener('fetch', (evt) => {
     return;
   }
 
-  // App-skalet: cache-first, uppdatera i bakgrunden (stale-while-revalidate)
+  // Nätverk först, cache bara som reservplan. Servern körs alltid lokalt på enheten
+  // när appen överhuvudtaget går att använda, så cache-first gav inget verkligt värde -
+  // bara förvirring när uppdateringar kändes "fastnade". Nu hämtas senaste versionen
+  // varje gång du laddar om, och cachen används bara om servern skulle vara onåbar.
   evt.respondWith(
-    caches.match(evt.request).then(cached => {
-      const network = fetch(evt.request).then(res => {
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(CACHE).then(cache => cache.put(evt.request, copy));
-        }
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(evt.request).then(res => {
+      if (res && res.status === 200) {
+        const copy = res.clone();
+        caches.open(CACHE).then(cache => cache.put(evt.request, copy));
+      }
+      return res;
+    }).catch(() => caches.match(evt.request))
   );
 });

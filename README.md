@@ -281,6 +281,76 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Nytt i denna omgång (Önskelista 5, del 2)
+
+- **Riktig bugg hittad och fixad: auto-advance till nästa låt.** En race condition - den
+  visuella nedräkningen rensade av misstag bort själva bytes-timern precis innan den skulle
+  utlösas. Bekräftat och verifierat med en isolerad test av timer-logiken (gammal kod: byte
+  kunde utebli slumpmässigt; ny kod: byte sker alltid).
+- **Manuell adress** - ⓘ-panelen har nu ett fält för att koppla upp mot en annan adress direkt
+  (t.ex. om telefonen bytt wifi-band, eller du kör i replokalen på ett annat nätverk).
+- **Skriv ut enstaka låt** direkt från redigeringsläget.
+- **Setlista: två utskriftsvarianter** - "bara titlar" (kompakt numrerad lista) och "med text"
+  (nu med sidbrytning så varje låt börjar på ett eget blad).
+- **Artist eller kompositör i listan** - välj vilket som visas i bibliotekets undertext.
+- **Gigläge** - ⛶-knappen i scenläget växlar till helskärm med minimala kontroller (av/på
+  autoscroll, hastighet, inställningar, stäng). Helskärmsläget i webbläsaren döljer normalt
+  även adressfältet, vilket som bonus kan dölja "Not secure"-varningen där.
+- **Bättre touch-yta** på dra-handtaget i setlistan (redan i förra leveransen, nämns här för
+  sammanhanget).
+
+**Kvar - kräver mer omsorg, tar nästa runda:** radbrytning av långa textrader vid hög zoom när
+ackord visas (kräver en riktig reflow-algoritm som inte förstör ackordens position ovanför
+rätt stavelse - vill inte slarva ihop den), översyn av ikoner/namngivning för konsekvens,
+visa/dölj-fält i redigeringsläget.
+
+### Om nätverk och Termux
+
+- **2,4GHz/5GHz-problemet** beror troligen på att Android slumpar MAC-adressen per nätverk
+  (en integritetsfunktion). Sätt "Enhets-MAC" istället för "Slumpad MAC" på båda banden i
+  telefonens wifi-inställningar, så täcker en enda DHCP-reservation i routern båda banden.
+  Om routern visar dem som två separata nätverk oavsett, sätt en reservation per band - de
+  får då olika IP, men appens nya "Anslut till annan adress"-fält gör det snabbt att växla.
+- **Att slippa Termux helt** är i dagsläget inte realistiskt utan att bygga om hela appen till
+  en native Android-app (stort projekt, osäker vinst). De få alternativ som finns (t.ex.
+  fristående "Node för Android"-appar) är mindre pålitliga för en anpassad Express-server med
+  websocket. Den riktiga friktionen - att behöva öppna Termux och starta manuellt - löses
+  istället av **Termux:Boot** (redan i paketet, autostartar vid omstart) plus den nya
+  **Termux:Widget**-genvägen (`termux-widget-start-songbook.sh`): installera Termux:Widget
+  från F-Droid, lägg skriptet i `~/.shortcuts/`, och du får en hemskärmsgenväg som startar
+  (eller startar om) servern med en knapptryckning - ingen terminal att öppna.
+
+## Nytt i denna omgång (Önskelista 5, del 1)
+
+- **Trolig grundorsak till flera "fortfarande trasigt"-buggar hittad:** service workern bytte
+  strategi från cache-först till **nätverk-först**. Servern körs alltid lokalt på enheten när
+  appen går att använda överhuvudtaget, så cache-först gav inget verkligt värde - bara
+  förvirring när uppdateringar kändes fastna. Detta bör göra framtida uppdateringar
+  mer självläkande.
+- **Riktig bugg hittad och fixad:** när autoscroll (eller "Nästa"-knappen) bytte till nästa låt
+  i en setlista återställdes aldrig skrollpositionen - nästa låt visades "redan nerskrollad",
+  vilket kunde se ut som att den inte gick vidare alls, eller fastnade längst ner.
+- **Starta scenläge från valfri låt** - klicka på en låts titel i setlist-byggaren för att
+  börja scenläget just där, inte bara från toppen.
+- **Backup - återställning.** Kunde bara ladda ner förut. Nu finns "Återställ från fil…" i
+  ⓘ-panelen - välj en tidigare nedladdad backup-fil för att återställa allt.
+- **Dubblettkontroll:** rimord med samma text+språk avvisas nu (både vid tillägg och import,
+  där dubbletter i en importlista hoppas över och räknas i resultatet). Låttitlar varnar mjukt
+  om en titel redan finns (blockerar inte, eftersom du medvetet vill kunna ha flera låtar med
+  samma titel som versioner).
+- **Bättre dra-handtag i setlistan** - betydligt större touch-yta, ska vara lättare att träffa
+  rätt på mobil utan att råka markera siffran istället.
+- **Egen ikon för rimlexikonet** - ersätter pennsymbolen, syns i toppfältet och på
+  dashboard-plattan.
+
+**Kvar till nästa omgång** (bekräftat, väntar på nästa session): skriva ut enstaka låt från
+biblioteket, skriv ut "bara titlar"-variant av setlistan (separat från full text-utskrift, som
+även ska få sidbrytning per låt), radbrytning istället för sidledsskroll vid hög zoom på smala
+skärmar, städning av ikoner/namngivning i gränssnittet, växla artist/kompositör i listvyn,
+visa/dölj-fält i redigeringsläget, helskärms-scenläge, samt "Not secure"-fältet i webbläsaren
+(det styrs av webbläsaren, inte appen - men chrome://flags-fixen från tidigare bör ta bort
+det också, om den är korrekt tillämpad).
+
 ## Nytt i denna omgång (Önskelista 4)
 
 - **Buggfix: kunde inte växla mellan låtversioner.** Om du skapade två versioner som två
