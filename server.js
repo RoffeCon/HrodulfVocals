@@ -1,4 +1,5 @@
 const express = require('express');
+const QRCode = require('qrcode');
 const http = require('http');
 const os = require('os');
 const path = require('path');
@@ -333,6 +334,23 @@ app.delete('/api/setlists/:id', async (req, res) => {
   if (!ok) return res.status(404).json({ error: 'Setlistan hittades inte' });
   broadcast({ type: 'setlists-changed', reason: 'deleted', id: req.params.id });
   res.status(204).end();
+});
+
+// QR-kod som länkar till en skrivskyddad vy av setlistan - för bandmedlemmar att
+// skanna med sina egna telefoner.
+app.get('/api/setlists/:id/qr', async (req, res) => {
+  const sl = setlists.get(req.params.id);
+  if (!sl) return res.status(404).json({ error: 'Setlistan hittades inte' });
+  const ips = localIPs();
+  const host = ips.length ? ips[0] : req.hostname;
+  const url = `http://${host}:${PORT}/setlist-view.html?id=${req.params.id}`;
+  try {
+    const png = await QRCode.toBuffer(url, { width: 320, margin: 2 });
+    res.set('Content-Type', 'image/png');
+    res.send(png);
+  } catch (e) {
+    res.status(500).json({ error: 'Kunde inte generera QR-kod' });
+  }
 });
 
 // ---------- Health / info ----------

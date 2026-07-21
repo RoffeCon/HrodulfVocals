@@ -60,16 +60,17 @@
         <span class="tile-title">Rimlexikon</span>
         <span class="tile-sub">Sök rim, hantera din ordlista</span>
       </button>
+      <button class="dashboard-tile" id="dashboardPracticeTile" type="button">
+        <span class="tile-icon">🎤</span>
+        <span class="tile-title">Öva utantill</span>
+        <span class="tile-sub">Välj en låt, öva direkt</span>
+      </button>
       <button class="dashboard-tile disabled" type="button" disabled>
         <span class="tile-icon">🎒</span>
         <span class="tile-title">Utrustning</span>
         <span class="tile-sub">Kommer snart - packlistor för gig</span>
       </button>
     </div>
-    <p class="dashboard-display-hint">
-      Vill du visa "Nu spelas"-läget på en andra skärm (t.ex. en Raspberry Pi i replokalen)?
-      Öppna <code id="dashboardDisplayUrl">/display.html</code> i en webbläsare på den skärmen.
-    </p>
   </section>
 
   <!-- BIBLIOTEK -->
@@ -140,28 +141,40 @@ Text till nästa låt här..."></textarea>
         <button class="btn btn-tiny" id="newVersionBtn" hidden>+ Ny version</button>
         <button class="btn btn-tiny" id="linkVersionBtn" hidden>🔗 Länka som version av…</button>
         <button class="btn btn-tiny" id="unlinkVersionBtn" hidden>Koppla loss från version</button>
+        <button class="btn btn-tiny" id="fieldVisibilityBtn" type="button">👁 Fält</button>
+        <button class="btn btn-tiny" id="editorFullscreenBtn" type="button">⛶ Helskärm</button>
         <button class="btn btn-tiny" id="exportBtn">Exportera</button>
         <button class="btn btn-tiny" id="printSongBtn" type="button">🖨 Skriv ut</button>
         <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
         <button class="btn btn-accent" id="saveSongBtn">Spara</button>
       </div>
     </div>
+    <div id="fieldVisibilityPanel" class="rhyme-add" hidden style="margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">Visa dessa fält:</div>
+      <div class="rhyme-type-checks" id="fieldVisibilityChecks"></div>
+    </div>
     <div id="editorVersionChips" class="version-chips"></div>
     <div class="editor-grid">
       <div class="field-grid">
         <label>Titel<input id="f-title" type="text" placeholder="Titel"></label>
-        <label>Kompositör<input id="f-composer" type="text" placeholder="Kompositör / text"></label>
-        <label>Artist<input id="f-artist" type="text" placeholder="Vem framför den (om annan än kompositören)"></label>
-        <label>Tonart<input id="f-key" type="text" placeholder="t.ex. Em"></label>
-        <label>Kapo<input id="f-capo" type="text" placeholder="t.ex. 2"></label>
-        <label>Tempo (BPM)<input id="f-tempo" type="text" placeholder="t.ex. 96"></label>
-        <label>Taktart<input id="f-time" type="text" placeholder="t.ex. 4/4"></label>
-        <label>Version<input id="f-version" type="text" placeholder="t.ex. V1, Akustisk, Live"></label>
-        <label class="field-wide">Taggar (komma-separerat)<input id="f-tags" type="text" placeholder="rock, egen, soundcheck"></label>
+        <label data-field="composer">Kompositör<input id="f-composer" type="text" placeholder="Kompositör / text"></label>
+        <label data-field="artist">Artist<input id="f-artist" type="text" placeholder="Vem framför den (om annan än kompositören)"></label>
+        <label data-field="key">Tonart<input id="f-key" type="text" placeholder="t.ex. Em"></label>
+        <label data-field="capo">Kapo<input id="f-capo" type="text" placeholder="t.ex. 2"></label>
+        <label data-field="tempo">Tempo (BPM)
+          <div class="rhyme-add-row">
+            <input id="f-tempo" type="text" placeholder="t.ex. 96">
+            <button class="btn btn-tiny" id="tapTempoBtn" type="button">👆 Tap</button>
+          </div>
+        </label>
+        <label data-field="time">Taktart<input id="f-time" type="text" placeholder="t.ex. 4/4"></label>
+        <label data-field="version">Version<input id="f-version" type="text" placeholder="t.ex. V1, Akustisk, Live"></label>
+        <label class="field-wide" data-field="tags">Taggar (komma-separerat)<input id="f-tags" type="text" placeholder="rock, egen, soundcheck"></label>
       </div>
-      <label class="field-wide">Anteckningar<textarea id="f-notes" rows="2" placeholder="Scenanvisningar, historik, vad du vill"></textarea></label>
+      <label class="field-wide" data-field="notes">Anteckningar<textarea id="f-notes" rows="2" placeholder="Scenanvisningar, historik, vad du vill"></textarea></label>
 
       <div class="body-editor">
+        <button class="btn btn-ghost btn-icon" id="exitEditorFullscreenBtn" type="button" hidden style="position:fixed;top:10px;right:10px;z-index:35;">✕ Avsluta helskärm</button>
         <div class="body-editor-head">
           <span>Text &amp; ackord</span>
           <button class="btn btn-tiny" id="helpBtn" type="button">Hur skriver jag?</button>
@@ -321,9 +334,19 @@ Det var en [C]gång i [G]tiden
       </div>
     </div>
 
+    <div id="energyCurveBox" class="energy-curve-box" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;font-size:13px;color:var(--text-dim);">Energikurva (tempo per låt)</h3>
+        <button class="btn btn-tiny" id="toggleEnergyCurve" type="button">Dölj</button>
+      </div>
+      <div id="energyCurveChart" class="energy-curve-chart"></div>
+    </div>
+    <button class="btn btn-tiny" id="showEnergyCurve" type="button" style="margin-bottom:14px;">📈 Visa energikurva</button>
+
     <div class="practice-btn-row">
       <button class="btn btn-ghost" id="printSetlistTitlesBtn" type="button">🖨 Skriv ut (bara titlar)</button>
       <button class="btn btn-ghost" id="printSetlistBtn" type="button">🖨 Skriv ut (med text)</button>
+      <button class="btn btn-ghost" id="showQrBtn" type="button">📱 QR-kod till bandet</button>
     </div>
     <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>
   </section>
@@ -341,6 +364,17 @@ Det var en [C]gång i [G]tiden
       <li>Refränger och verser färgmarkeras automatiskt utifrån ordet i rubriken (vers/refräng/stick).</li>
     </ul>
     <button class="btn btn-accent" id="closeHelp">Stäng</button>
+  </div>
+</div>
+
+<div id="qrModal" class="modal" hidden>
+  <div class="modal-card" style="text-align:center;">
+    <h3 id="qrModalTitle">QR-kod till setlistan</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);">Bandmedlemmar skannar med sin egen telefonkamera för en skrivskyddad vy av setet - inget konto eller app krävs.</p>
+    <img id="qrImage" alt="QR-kod" style="width:260px;height:260px;background:#fff;padding:10px;border-radius:8px;">
+    <div class="practice-btn-row" style="justify-content:center;">
+      <button class="btn btn-ghost" id="closeQrModal" type="button">Stäng</button>
+    </div>
   </div>
 </div>
 
@@ -377,6 +411,9 @@ Det var en [C]gång i [G]tiden
     <div id="infoIpBox" style="font-size:13.5px;color:var(--text-dim);margin-bottom:14px;">Hämtar IP-adress…</div>
     <p style="font-size:12.5px;color:var(--text-dim);">Skriv in adressen ovan i en webbläsare på datorn (samma wifi-nätverk) för att redigera därifrån.</p>
     <hr>
+    <p style="font-size:13.5px;">Visa "Nu spelas"-läget på en andra skärm (t.ex. en Raspberry Pi i replokalen)? Öppna den här adressen i en webbläsare på den skärmen:</p>
+    <p style="font-size:13.5px;"><code id="dashboardDisplayUrl" style="background:var(--surface-2);padding:3px 8px;border-radius:4px;color:var(--amber);">/display.html</code></p>
+    <hr>
     <p style="font-size:13.5px;">Hittar den inte rätt adress (t.ex. efter ett bandbyte mellan 2,4/5GHz, eller på ett annat nätverk som replokalen)? Ange en adress manuellt:</p>
     <div class="rhyme-add-row">
       <input id="manualConnectInput" type="text" placeholder="t.ex. 192.168.1.50 eller 192.168.1.50:8420">
@@ -411,6 +448,7 @@ Det var en [C]gång i [G]tiden
 
     <div id="rhymeSearchPane" class="rhyme-pane">
       <input id="rhymeLookupInput" type="search" placeholder="Vad rimmar på…? Skriv ett ord">
+      <div id="rhymeLookupTypeFilter" class="rhyme-type-checks rhyme-type-checks-compact"></div>
       <div id="rhymeLookupResults" class="rhyme-lookup-results"></div>
 
       <hr>
@@ -448,6 +486,8 @@ Det var en [C]gång i [G]tiden
         <input id="rhymeWordPhrases" type="text" placeholder="Frasexempel, kommaseparerat">
         <input id="rhymeWordTags" type="text" placeholder="Taggar, kommaseparerat (t.ex. poetiskt, slang, metal)">
         <input id="rhymeWordNotes" type="text" placeholder="Anteckning (valfritt)">
+        <input id="rhymeWordRhymesWith" type="text" placeholder="Rimmar på (ett ord ur listan, valfritt)">
+        <label class="enter-toggle" style="margin:2px 0 4px;"><input type="checkbox" id="rhymeWordAutoExpand" checked> Koppla även till de ord det ordet redan rimmar med</label>
         <label class="enter-toggle" style="margin:2px 0 8px;"><input type="checkbox" id="rhymeWordFavorite"> ⭐ Favorit</label>
         <div class="rhyme-add-row">
           <button class="btn btn-ghost" id="cancelRhymeWordEdit" type="button" hidden>Avbryt</button>

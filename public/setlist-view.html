@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setlista</title>
+<meta name="theme-color" content="#15120e">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+  .sl-header { text-align: center; margin-bottom: 20px; }
+  .sl-header h1 { font-family: var(--font-display); margin-bottom: 2px; }
+  .sl-header p { color: var(--text-dim); font-size: 13px; margin: 0; }
+  .sl-song {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .sl-song-title { font-weight: 700; font-size: 15px; }
+  .sl-song-meta { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  .sl-song-body { display: none; margin-top: 12px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+  .sl-song.open .sl-song-body { display: block; }
+  .sl-group {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--amber); margin: 18px 0 8px; border-top: 1px solid var(--border); padding-top: 10px;
+  }
+  .sl-group:first-child { border-top: none; margin-top: 0; }
+</style>
+</head>
+<body>
+<div class="sl-header">
+  <h1 id="slName">Setlista</h1>
+  <p id="slMeta"></p>
+</div>
+<div id="slList"></div>
+
+<script src="chordpro.js"></script>
+<script src="setlist-view.js"></script>
+</body>
+</html>

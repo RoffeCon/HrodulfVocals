@@ -1,4 +1,4 @@
-const CACHE = 'lyricsmaster-shell-v7';
+const CACHE = 'lyricsmaster-shell-v9';
 const SHELL = [
   '/',
   '/index.html',
@@ -9,6 +9,8 @@ const SHELL = [
   '/icons/icon-192.png',
   '/display.html',
   '/display.js',
+  '/setlist-view.html',
+  '/setlist-view.js',
 ];
 
 self.addEventListener('install', (evt) => {

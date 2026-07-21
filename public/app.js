@@ -84,6 +84,7 @@
   document.getElementById('tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.tab');
     if (!btn) return;
+    if (btn.dataset.view !== 'library') pendingLibraryAction = null;
     showView(btn.dataset.view);
   });
 
@@ -91,6 +92,13 @@
     tile.addEventListener('click', () => showView(tile.dataset.view));
   });
   document.getElementById('dashboardRhymeTile').addEventListener('click', () => openRhymePanel('edit'));
+
+  let pendingLibraryAction = null; // 'practice' - satt av dashboard-plattan, konsumeras av nästa låtklick
+  document.getElementById('dashboardPracticeTile').addEventListener('click', () => {
+    pendingLibraryAction = 'practice';
+    toast('Välj en låt att öva på');
+    showView('library');
+  });
 
   (async () => {
     try {
@@ -265,6 +273,9 @@
       try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); } catch (err) { toast(err.message, true); }
     } else if (e.target.closest('[data-action="rename"]')) {
       startInlineRename(row, id);
+    } else if (pendingLibraryAction === 'practice') {
+      pendingLibraryAction = null;
+      openPractice(id, 'library');
     } else {
       openViewer(id, null);
     }
@@ -375,6 +386,8 @@
     document.getElementById('unlinkVersionBtn').hidden = !hasSiblings;
     if (id) renderVersionChips('editorVersionChips', song, id, (pickedId) => openEditor(pickedId, returnView));
     else document.getElementById('editorVersionChips').innerHTML = '';
+    applyFieldVisibility();
+    document.getElementById('fieldVisibilityPanel').hidden = true;
     showView('editor');
     document.getElementById('f-title').focus();
   }
@@ -434,7 +447,7 @@
     } catch (err) { toast(err.message, true); }
   });
 
-  document.getElementById('editorBack').addEventListener('click', () => showView(state.editorReturnView));
+  document.getElementById('editorBack').addEventListener('click', () => { exitEditorFullscreen(); showView(state.editorReturnView); });
 
   document.getElementById('saveSongBtn').addEventListener('click', async () => {
     const title = document.getElementById('f-title').value.trim();
@@ -766,7 +779,39 @@
         <button class="btn btn-tiny btn-accent" data-action="add">+ Lägg till</button>
       </li>
     `).join('');
+    renderEnergyCurve();
   }
+
+  function renderEnergyCurve() {
+    const box = document.getElementById('energyCurveChart');
+    if (!box) return;
+    const songsById = Object.fromEntries(state.songs.map(s => [s.id, s]));
+    const songItems = editingSetlist.items.filter(it => it.kind === 'song').map(it => songsById[it.songId]).filter(Boolean);
+    if (!songItems.length) { box.innerHTML = '<p class="empty-state small">Lägg till låtar för att se energikurvan.</p>'; return; }
+    const tempos = songItems.map(s => parseInt(s.tempo, 10)).filter(n => !isNaN(n));
+    const maxTempo = tempos.length ? Math.max(...tempos, 60) : 180;
+    box.innerHTML = songItems.map(s => {
+      const bpm = parseInt(s.tempo, 10);
+      const hasTempo = !isNaN(bpm);
+      const heightPct = hasTempo ? Math.max(6, Math.round((bpm / maxTempo) * 100)) : 8;
+      return `
+        <div class="energy-bar-wrap" title="${escapeHtml(s.title)}${hasTempo ? ' - ' + bpm + ' bpm' : ' - tempo okänt'}">
+          <span class="energy-bar-bpm">${hasTempo ? bpm : '–'}</span>
+          <div class="energy-bar ${hasTempo ? '' : 'no-tempo'}" style="height:${heightPct}%"></div>
+          <span class="energy-bar-label">${escapeHtml(s.title)}</span>
+        </div>`;
+    }).join('');
+  }
+
+  document.getElementById('showEnergyCurve').addEventListener('click', () => {
+    document.getElementById('energyCurveBox').hidden = false;
+    document.getElementById('showEnergyCurve').hidden = true;
+    renderEnergyCurve();
+  });
+  document.getElementById('toggleEnergyCurve').addEventListener('click', () => {
+    document.getElementById('energyCurveBox').hidden = true;
+    document.getElementById('showEnergyCurve').hidden = false;
+  });
 
   document.getElementById('addSongSearch').addEventListener('input', renderSetlistBuilder);
 
@@ -956,6 +1001,14 @@
     } catch (e) { toast(e.message, true); }
   });
 
+  document.getElementById('showQrBtn').addEventListener('click', () => {
+    if (!state.currentSetlistId) { toast('Spara setlistan först', true); return; }
+    document.getElementById('qrModalTitle').textContent = 'QR-kod: ' + (editingSetlist.name || 'Setlista');
+    document.getElementById('qrImage').src = `/api/setlists/${state.currentSetlistId}/qr?t=${Date.now()}`;
+    document.getElementById('qrModal').hidden = false;
+  });
+  document.getElementById('closeQrModal').addEventListener('click', () => { document.getElementById('qrModal').hidden = true; });
+
   document.getElementById('printSetlistTitlesBtn').addEventListener('click', async () => {
     const items = editingSetlist.items;
     const songIds = deriveSongIds(items);
@@ -992,6 +1045,76 @@
       <div class="meta">${escapeHtml(metaBits.join(' · '))}</div>
       <pre>${escapeHtml(song.text || '')}</pre>`;
     openPrintWindow(html, song.title);
+  });
+
+  // ---- Visa/dölj fält i editorn ----
+
+  const EDITOR_FIELDS = {
+    composer: 'Kompositör', artist: 'Artist', key: 'Tonart', capo: 'Kapo',
+    tempo: 'Tempo', time: 'Taktart', version: 'Version', tags: 'Taggar', notes: 'Anteckningar',
+  };
+
+  function getHiddenFields() {
+    try {
+      const raw = localStorage.getItem('songbook-hidden-fields');
+      return raw ? JSON.parse(raw) : [];
+    } catch (_) { return []; }
+  }
+  function applyFieldVisibility() {
+    const hidden = new Set(getHiddenFields());
+    document.querySelectorAll('[data-field]').forEach(label => {
+      label.classList.toggle('field-hidden', hidden.has(label.dataset.field));
+    });
+  }
+  function renderFieldVisibilityChecks() {
+    const box = document.getElementById('fieldVisibilityChecks');
+    if (box.children.length) return;
+    const hidden = new Set(getHiddenFields());
+    box.innerHTML = Object.entries(EDITOR_FIELDS).map(([key, label]) => `
+      <label><input type="checkbox" class="field-vis-check" value="${key}" ${hidden.has(key) ? '' : 'checked'}> ${label}</label>
+    `).join('');
+    box.addEventListener('change', () => {
+      const nowHidden = [...box.querySelectorAll('.field-vis-check')].filter(cb => !cb.checked).map(cb => cb.value);
+      try { localStorage.setItem('songbook-hidden-fields', JSON.stringify(nowHidden)); } catch (_) {}
+      applyFieldVisibility();
+    });
+  }
+  document.getElementById('fieldVisibilityBtn').addEventListener('click', () => {
+    renderFieldVisibilityChecks();
+    const panel = document.getElementById('fieldVisibilityPanel');
+    panel.hidden = !panel.hidden;
+  });
+
+  // ---- Helskärms-skrivläge ----
+
+  document.getElementById('editorFullscreenBtn').addEventListener('click', async () => {
+    document.getElementById('view-editor').classList.add('editor-fullscreen');
+    document.getElementById('exitEditorFullscreenBtn').hidden = false;
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (_) {}
+    document.getElementById('f-text').focus();
+  });
+  async function exitEditorFullscreen() {
+    document.getElementById('view-editor').classList.remove('editor-fullscreen');
+    document.getElementById('exitEditorFullscreenBtn').hidden = true;
+    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (_) {}
+  }
+  document.getElementById('exitEditorFullscreenBtn').addEventListener('click', exitEditorFullscreen);
+
+  // ---- Tap tempo ----
+
+  let tapTimes = [];
+  document.getElementById('tapTempoBtn').addEventListener('click', () => {
+    const now = performance.now();
+    tapTimes.push(now);
+    tapTimes = tapTimes.filter(t => now - t < 4000); // glöm gamla tap efter 4s tystnad
+    if (tapTimes.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
+      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = Math.round(60000 / avgMs);
+      document.getElementById('f-tempo').value = bpm;
+    }
+    toast(tapTimes.length < 2 ? 'Knacka igen…' : `${document.getElementById('f-tempo').value} bpm`);
   });
 
   // ---------- Viewer / scenläge ----------
@@ -1499,7 +1622,9 @@
 
   function finishPracticeLine(statusClass, html) {
     appendPracticeLog(statusClass, html);
-    document.getElementById('practiceInput').disabled = true;
+    const input = document.getElementById('practiceInput');
+    input.disabled = true;
+    input.value = '';
     document.getElementById('checkLineBtn').hidden = true;
     document.getElementById('revealLineBtn').hidden = true;
     document.getElementById('nextLineBtn').hidden = false;
@@ -1607,6 +1732,7 @@
   const RhymeLinks = {
     list: () => api('/api/rhyme-links'),
     create: (data) => api('/api/rhyme-links', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id, data) => api('/api/rhyme-links/' + id, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id) => api('/api/rhyme-links/' + id, { method: 'DELETE' }),
   };
 
@@ -1641,7 +1767,23 @@
 
   // ---- Sök: "vad rimmar på X?" - grupperat efter stavelseantal ----
 
+  function renderRhymeLookupTypeFilter() {
+    const box = document.getElementById('rhymeLookupTypeFilter');
+    if (box.children.length) return; // redan renderad
+    box.innerHTML = RHYME_TYPES.map(t => `
+      <label><input type="checkbox" class="lookup-type-check" value="${t}" checked> ${RHYME_TYPE_LABEL[t]}</label>
+    `).join('');
+    box.addEventListener('change', renderRhymeLookup);
+  }
+
+  function getSelectedLookupTypes() {
+    const boxes = document.querySelectorAll('.lookup-type-check');
+    if (!boxes.length) return RHYME_TYPES.slice();
+    return [...boxes].filter(cb => cb.checked).map(cb => cb.value);
+  }
+
   function renderRhymeLookup() {
+    renderRhymeLookupTypeFilter();
     const q = document.getElementById('rhymeLookupInput').value.trim().toLowerCase();
     const box = document.getElementById('rhymeLookupResults');
     if (!q) { box.innerHTML = ''; return; }
@@ -1656,19 +1798,22 @@
       return;
     }
 
-    const connections = new Map(); // wordId -> Set(types)
+    const selectedTypes = new Set(getSelectedLookupTypes());
+    const connections = new Map(); // wordId -> Set(types), bara typer som matchar filtret
     for (const mw of matchedWords) {
       for (const link of state.rhymeLinks) {
         if (!link.wordIds.includes(mw.id)) continue;
+        const matchingTypes = link.types.filter(t => selectedTypes.has(t));
+        if (!matchingTypes.length) continue; // ingen av länkens typer är valda - hoppa över
         for (const wid of link.wordIds) {
           if (wid === mw.id) continue;
           if (!connections.has(wid)) connections.set(wid, new Set());
-          link.types.forEach(t => connections.get(wid).add(t));
+          matchingTypes.forEach(t => connections.get(wid).add(t));
         }
       }
     }
     if (!connections.size) {
-      box.innerHTML = `<p class="empty-state small">Inga rimkopplingar hittades för "${escapeHtml(q)}" än.</p>`;
+      box.innerHTML = `<p class="empty-state small">Inga rimkopplingar av valda typer hittades för "${escapeHtml(q)}".</p>`;
       return;
     }
 
@@ -1708,6 +1853,8 @@
     document.getElementById('rhymeWordPhrases').value = '';
     document.getElementById('rhymeWordTags').value = '';
     document.getElementById('rhymeWordNotes').value = '';
+    document.getElementById('rhymeWordRhymesWith').value = '';
+    document.getElementById('rhymeWordAutoExpand').checked = true;
     document.getElementById('rhymeWordFavorite').checked = false;
     document.getElementById('addRhymeWordBtn').textContent = '+ Lägg till ord';
     document.getElementById('cancelRhymeWordEdit').hidden = true;
@@ -1781,9 +1928,12 @@
   document.getElementById('addRhymeWordBtn').addEventListener('click', async () => {
     const text = document.getElementById('rhymeWordText').value.trim();
     if (!text) { toast('Skriv ett ord', true); return; }
+    const language = document.getElementById('rhymeWordLanguage').value;
+    const rhymesWithText = document.getElementById('rhymeWordRhymesWith').value.trim();
+    const autoExpand = document.getElementById('rhymeWordAutoExpand').checked;
     const data = {
       text,
-      language: document.getElementById('rhymeWordLanguage').value,
+      language,
       syllables: document.getElementById('rhymeWordSyllables').value ? parseInt(document.getElementById('rhymeWordSyllables').value, 10) : null,
       phrases: document.getElementById('rhymeWordPhrases').value.split(',').map(p => p.trim()).filter(Boolean),
       tags: document.getElementById('rhymeWordTags').value.split(',').map(t => t.trim()).filter(Boolean),
@@ -1791,12 +1941,32 @@
       favorite: document.getElementById('rhymeWordFavorite').checked,
     };
     try {
+      let wordRecord;
       if (editingWordId) {
-        await RhymeWords.update(editingWordId, data);
+        wordRecord = await RhymeWords.update(editingWordId, data);
         toast('Ordet uppdaterat');
       } else {
-        await RhymeWords.create(data);
+        wordRecord = await RhymeWords.create(data);
         toast('Ordet tillagt');
+        // Snabbkoppling: ange ett ord ur listan som det nya rimmar på, så följer
+        // kopplingen till dess övriga rim med automatiskt (om ikryssat).
+        if (rhymesWithText) {
+          const target = state.rhymeWords.find(w => w.text.toLowerCase() === rhymesWithText.toLowerCase() && w.language === language);
+          if (!target) {
+            toast(`Hittade inget ord "${rhymesWithText}" (${RHYME_LANG_LABEL[language]}) att koppla till`, true);
+          } else {
+            const existingLinks = state.rhymeLinks.filter(l => l.wordIds.includes(target.id));
+            if (autoExpand && existingLinks.length) {
+              await Promise.all(existingLinks.map(l => RhymeLinks.update(l.id, {
+                wordIds: [...new Set([...l.wordIds, wordRecord.id])],
+              })));
+              toast(`Kopplad till "${target.text}" och dess ${existingLinks.length > 1 ? 'grupper' : 'grupp'}`);
+            } else {
+              await RhymeLinks.create({ wordIds: [wordRecord.id, target.id], types: ['perfect'] });
+              toast(`Kopplad till "${target.text}"`);
+            }
+          }
+        }
       }
       resetRhymeWordForm();
       await loadRhymes();
@@ -1820,6 +1990,7 @@
       document.getElementById('rhymeWordPhrases').value = (word.phrases || []).join(', ');
       document.getElementById('rhymeWordTags').value = (word.tags || []).join(', ');
       document.getElementById('rhymeWordNotes').value = word.notes || '';
+      document.getElementById('rhymeWordRhymesWith').value = '';
       document.getElementById('rhymeWordFavorite').checked = !!word.favorite;
       document.getElementById('addRhymeWordBtn').textContent = 'Spara ändringar';
       document.getElementById('cancelRhymeWordEdit').hidden = false;

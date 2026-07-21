@@ -281,6 +281,43 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Nytt i denna omgång (Önskelista 6)
+
+- **Dashboard-fixar:** övningsläget har nu en egen platta (välj låt, hamna direkt i
+  övningsläget), loggan/rubriken ska inte längre klippas på smala skärmar, och
+  "andra skärmen"-adressen bor nu i ⓘ-panelen tillsammans med resten av anslutnings-
+  och backup-informationen istället för att ligga separat på dashboarden.
+- **Fält kan döljas i redigeringsläget** - 👁 Fält-knappen låter dig bocka ur vilka av
+  Kompositör/Artist/Tonart/Kapo/Tempo/Taktart/Version/Taggar/Anteckningar som ska synas.
+  Sparas per enhet.
+- **Helskärms-skrivläge** - ⛶ Helskärm i editorn döljer alla fält och maximerar textfältet,
+  för fokuserat skrivande.
+- **Tap tempo** - 👆 Tap-knappen bredvid Tempo-fältet i editorn: knacka takten, får BPM
+  automatiskt.
+- **Rim-autokoppling** - när du lägger till ett nytt ord kan du ange "Rimmar på" (ett
+  befintligt ord). Är rutan "Koppla även till de ord det ordet redan rimmar med" ikryssad
+  (standard) kopplas det nya ordet automatiskt in i alla grupper det angivna ordet redan
+  tillhör - lägg till "grace" och ange "rimmar på lace" så kopplas den automatiskt till
+  hela place/lace/brace/ace/commonplace/disgrace-gänget också.
+- **Energikurva** - 📈 Visa energikurva i setlist-byggaren ritar upp tempot låt för låt som
+  ett stapeldiagram, så du ser om tre balladlåtar råkat hamna i rad.
+- **QR-kod till bandet** - 📱 QR-kod till bandet i setlist-byggaren genererar en skannbar
+  kod som länkar till en skrivskyddad vy (`/setlist-view.html`) - bandmedlemmar skannar med
+  sin egen telefonkamera, ingen app eller inloggning behövs, och kan trycka på en låt för
+  att se text och ackord.
+
+**Kvar - väntar på nästa omgång:** versmått-uppslagsverk med mallgenerator (vill göra det
+ordentligt och korrekt, inte hafsa ihop 20-30 poesiformer på slarv), radbrytning vid hög
+zoom, samt översyn av ikoner/namngivning för konsekvens.
+
+## Senaste smärre förbättringar
+
+- **Rimsökningen kan filtreras per typ** - kryssrutor ovanför sökresultatet i Sök-läget.
+  Söker du "sat" och bara kryssar i Allitteration får du bara "spat" (den enda kopplingen
+  taggad så); kryssar du i Perfekt rim också får du hela gänget som rimmar perfekt.
+- **Övningsläget rensar svarsrutan direkt** när du rättat en rad, istället för att din gamla
+  text ligger kvar synlig tills du klickat "Nästa rad".
+
 ## Nytt i denna omgång (Önskelista 5, del 2)
 
 - **Riktig bugg hittad och fixad: auto-advance till nästa låt.** En race condition - den
