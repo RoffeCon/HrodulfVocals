@@ -342,7 +342,7 @@ app.get('/api/setlists/:id/qr', async (req, res) => {
   const sl = setlists.get(req.params.id);
   if (!sl) return res.status(404).json({ error: 'Setlistan hittades inte' });
   const ips = localIPs();
-  const host = ips.length ? ips[0] : req.hostname;
+  const host = ips.length ? ips[0].address : req.hostname;
   const url = `http://${host}:${PORT}/setlist-view.html?id=${req.params.id}`;
   try {
     const png = await QRCode.toBuffer(url, { width: 320, margin: 2 });
@@ -650,9 +650,17 @@ function localIPs() {
   const out = [];
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) out.push(net.address);
+      if (net.family === 'IPv4' && !net.internal) {
+        out.push({ address: net.address, iface: name });
+      }
     }
   }
+  // wlan-gränssnitt (wifi) listas först - det är nästan alltid det du vill ha.
+  // rmnet/ccmni m.fl. är mobildata och går aldrig att nå från din dators wifi.
+  out.sort((a, b) => {
+    const score = (n) => /wlan|wl[0-9]/i.test(n) ? 0 : /rmnet|ccmni|pdp|data/i.test(n) ? 2 : 1;
+    return score(a.iface) - score(b.iface);
+  });
   return out;
 }
 
@@ -664,7 +672,10 @@ migrateOldRhymes().then(() => {
     console.log(`  På telefonen:      http://localhost:${PORT}`);
     const ips = localIPs();
     if (ips.length) {
-      ips.forEach(ip => console.log(`  Från datorn (wifi): http://${ip}:${PORT}`));
+      ips.forEach(ip => {
+        const label = /wlan|wl[0-9]/i.test(ip.iface) ? 'wifi' : /rmnet|ccmni|pdp|data/i.test(ip.iface) ? 'MOBILDATA - funkar inte från datorn!' : ip.iface;
+        console.log(`  Från datorn (${label}): http://${ip.address}:${PORT}`);
+      });
     } else {
       console.log('  Ingen wifi-adress hittades - kontrollera att telefonen är ansluten till nätverket.');
     }

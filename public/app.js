@@ -104,7 +104,7 @@
     try {
       const info = await api('/api/info');
       if (info.ips && info.ips.length) {
-        document.getElementById('dashboardDisplayUrl').textContent = `http://${info.ips[0]}:${info.port}/display.html`;
+        document.getElementById('dashboardDisplayUrl').textContent = `http://${info.ips[0].address}:${info.port}/display.html`;
       }
     } catch (_) {}
   })();
@@ -1447,7 +1447,14 @@
     try {
       const info = await api('/api/info');
       if (info.ips && info.ips.length) {
-        box.innerHTML = info.ips.map(ip => `<div>Från datorn: <strong>http://${ip}:${info.port}</strong></div>`).join('') +
+        box.innerHTML = info.ips.map(ip => {
+          const isMobile = /rmnet|ccmni|pdp|data/i.test(ip.iface);
+          const isWifi = /wlan|wl[0-9]/i.test(ip.iface);
+          const label = isMobile ? ' <span style="color:var(--danger);">(mobildata - funkar inte från datorn)</span>'
+            : isWifi ? ' <span style="color:var(--teal);">(wifi - använd denna)</span>'
+            : ` <span style="color:var(--text-faint);">(${escapeHtml(ip.iface)})</span>`;
+        return `<div>Från datorn: <strong>http://${ip.address}:${info.port}</strong>${label}</div>`;
+        }).join('') +
           `<div style="margin-top:4px;">På telefonen: <strong>http://localhost:${info.port}</strong></div>`;
       } else {
         box.textContent = 'Ingen wifi-IP hittades - kontrollera att telefonen är ansluten till nätverket.';
