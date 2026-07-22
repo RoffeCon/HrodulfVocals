@@ -281,6 +281,19 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Två uppskjutna punkter, nu klara
+
+- **Riktig radbrytning vid hög zoom.** Långa ackord+text-rader bryts nu vid ordgränser när de
+  inte får plats, och ackorden följer med och hamnar kvar ovanför rätt stavelse i den nya
+  radbrytningen - inte bara sidledsskroll längre. Räknar om automatiskt när du zoomar in/ut
+  eller roterar skärmen.
+- **Städat gränssnitt.** Editorn och setlist-vyn hade svällt till 7-9 knappar utspridda över
+  hela raden. Sekundära funktioner (versioner, fält, helskärm, export, utskrift, radera, QR,
+  energikurva) ligger nu i en samlad "⋯ Mer"-meny; bara den primära handlingen (Spara) syns
+  direkt.
+
+Kvar: versmått-uppslagsverket (större jobb, kommer i en egen leverans).
+
 ## Nytt i denna omgång (Önskelista 6)
 
 - **Dashboard-fixar:** övningsläget har nu en egen platta (välj låt, hamna direkt i

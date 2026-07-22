@@ -1001,6 +1001,18 @@
     } catch (e) { toast(e.message, true); }
   });
 
+  document.getElementById('setlistMoreBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('setlistMoreMenu').hidden = !document.getElementById('setlistMoreMenu').hidden;
+  });
+  document.getElementById('setlistMoreMenu').addEventListener('click', (e) => {
+    if (e.target.closest('button')) document.getElementById('setlistMoreMenu').hidden = true;
+  });
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('setlistMoreMenu');
+    if (!menu.hidden && !e.target.closest('.dropdown-wrap')) menu.hidden = true;
+  });
+
   document.getElementById('showQrBtn').addEventListener('click', () => {
     if (!state.currentSetlistId) { toast('Spara setlistan först', true); return; }
     document.getElementById('qrModalTitle').textContent = 'QR-kod: ' + (editingSetlist.name || 'Setlista');
@@ -1036,6 +1048,19 @@
       if (listOpen) html += '</ol>';
       openPrintWindow(html, (editingSetlist.name || 'Setlista') + ' - låtlista');
     } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('editorMoreBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('editorMoreMenu').hidden = !document.getElementById('editorMoreMenu').hidden;
+  });
+  document.getElementById('editorMoreMenu').addEventListener('click', (e) => {
+    // Stäng menyn när en åtgärd i den klickas, men inte vid klick på tomrum i menyn
+    if (e.target.closest('button')) document.getElementById('editorMoreMenu').hidden = true;
+  });
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('editorMoreMenu');
+    if (!menu.hidden && !e.target.closest('.dropdown-wrap')) menu.hidden = true;
   });
 
   document.getElementById('printSongBtn').addEventListener('click', () => {
@@ -1168,12 +1193,13 @@
     document.getElementById('viewerMeta').textContent = metaParts.join(' · ');
     renderVersionChips('viewerVersionChips', song, song.id, (pickedId) => openViewer(pickedId, state.viewer.setlistContext));
 
+    document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
     document.getElementById('songBody').innerHTML = window.Songbook.renderSong(song.text, {
       transpose: state.viewer.transpose,
       showChords: state.viewer.showChords,
       preferFlats,
+      maxChars: estimateMaxCharsPerLine(),
     });
-    document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
     // scrollTop återställs inte automatiskt av webbläsaren bara för att innehållet
     // byts ut - utan detta visas nästa låt "redan nerskrollad" (kvar på gamla positionen).
     document.getElementById('songBody').scrollTop = 0;
@@ -1221,13 +1247,60 @@
     renderViewer();
   });
 
+  // Mäter hur många enteckensbredder (monospace) som får plats på en rad i
+  // sångtexten just nu, givet aktuell teckenstorlek/zoom. Används för att radbryta
+  // långa ackord+text-rader vid hög zoom istället för att bara skrolla i sidled.
+  function estimateMaxCharsPerLine() {
+    const container = document.getElementById('songBody');
+    if (!container) return 0;
+    const cs = getComputedStyle(container);
+    const probe = document.createElement('span');
+    probe.style.font = `${parseFloat(cs.fontSize)}px ${cs.fontFamily}`;
+    probe.style.fontFamily = 'ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace';
+    probe.style.visibility = 'hidden';
+    probe.style.position = 'absolute';
+    probe.style.whiteSpace = 'pre';
+    probe.textContent = 'M'.repeat(50);
+    document.body.appendChild(probe);
+    const charWidth = probe.getBoundingClientRect().width / 50;
+    document.body.removeChild(probe);
+    if (!charWidth || charWidth <= 0) return 0;
+    const available = container.clientWidth - 36;
+    return Math.max(20, Math.floor(available / charWidth));
+  }
+
+  // Ritar om sångtexten (t.ex. efter zoomändring) utan att nollställa skrollposition
+  // eller annat i scenläget - bara texten och radbrytningen uppdateras.
+  function reRenderSongBody() {
+    const song = state.viewer.song;
+    if (!song) return;
+    const preferFlats = window.Songbook.prefersFlats(song.key);
+    const scrollBefore = document.getElementById('songBody').scrollTop;
+    document.getElementById('songBody').innerHTML = window.Songbook.renderSong(song.text, {
+      transpose: state.viewer.transpose,
+      showChords: state.viewer.showChords,
+      preferFlats,
+      maxChars: estimateMaxCharsPerLine(),
+    });
+    document.getElementById('songBody').scrollTop = scrollBefore;
+  }
+
   document.getElementById('fontUp').addEventListener('click', () => {
     state.viewer.fontScale = Math.min(3, state.viewer.fontScale + 0.1);
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
+    reRenderSongBody();
   });
   document.getElementById('fontDown').addEventListener('click', () => {
     state.viewer.fontScale = Math.max(0.55, state.viewer.fontScale - 0.1);
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
+    reRenderSongBody();
+  });
+
+  let resizeWrapTimer = null;
+  window.addEventListener('resize', () => {
+    if (!document.getElementById('view-viewer').classList.contains('active')) return;
+    clearTimeout(resizeWrapTimer);
+    resizeWrapTimer = setTimeout(reRenderSongBody, 200);
   });
 
   document.getElementById('prevSongBtn').addEventListener('click', () => stepSetlist(-1));

@@ -138,14 +138,19 @@ Text till nästa låt här..."></textarea>
     <div class="editor-header">
       <button class="btn btn-ghost" id="editorBack">← Tillbaka</button>
       <div class="editor-actions">
-        <button class="btn btn-tiny" id="newVersionBtn" hidden>+ Ny version</button>
-        <button class="btn btn-tiny" id="linkVersionBtn" hidden>🔗 Länka som version av…</button>
-        <button class="btn btn-tiny" id="unlinkVersionBtn" hidden>Koppla loss från version</button>
-        <button class="btn btn-tiny" id="fieldVisibilityBtn" type="button">👁 Fält</button>
-        <button class="btn btn-tiny" id="editorFullscreenBtn" type="button">⛶ Helskärm</button>
-        <button class="btn btn-tiny" id="exportBtn">Exportera</button>
-        <button class="btn btn-tiny" id="printSongBtn" type="button">🖨 Skriv ut</button>
-        <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
+        <div class="dropdown-wrap">
+          <button class="btn btn-tiny" id="editorMoreBtn" type="button">⋯ Mer</button>
+          <div class="dropdown-menu" id="editorMoreMenu" hidden>
+            <button class="btn btn-tiny" id="newVersionBtn" hidden>+ Ny version</button>
+            <button class="btn btn-tiny" id="linkVersionBtn" hidden>🔗 Länka som version av…</button>
+            <button class="btn btn-tiny" id="unlinkVersionBtn" hidden>Koppla loss från version</button>
+            <button class="btn btn-tiny" id="fieldVisibilityBtn" type="button">👁 Visa/dölj fält</button>
+            <button class="btn btn-tiny" id="editorFullscreenBtn" type="button">⛶ Helskärm</button>
+            <button class="btn btn-tiny" id="exportBtn">Exportera</button>
+            <button class="btn btn-tiny" id="printSongBtn" type="button">🖨 Skriv ut</button>
+            <button class="btn btn-danger" id="deleteSongBtn">Radera</button>
+          </div>
+        </div>
         <button class="btn btn-accent" id="saveSongBtn">Spara</button>
       </div>
     </div>
@@ -307,7 +312,16 @@ Det var en [C]gång i [G]tiden
     <div class="editor-header">
       <button class="btn btn-ghost" id="setlistEditorBack">← Tillbaka</button>
       <div class="editor-actions">
-        <button class="btn btn-danger" id="deleteSetlistBtn">Radera</button>
+        <div class="dropdown-wrap">
+          <button class="btn btn-tiny" id="setlistMoreBtn" type="button">⋯ Mer</button>
+          <div class="dropdown-menu" id="setlistMoreMenu" hidden>
+            <button class="btn btn-tiny" id="showEnergyCurve" type="button">📈 Visa energikurva</button>
+            <button class="btn btn-tiny" id="printSetlistTitlesBtn" type="button">🖨 Skriv ut (bara titlar)</button>
+            <button class="btn btn-tiny" id="printSetlistBtn" type="button">🖨 Skriv ut (med text)</button>
+            <button class="btn btn-tiny" id="showQrBtn" type="button">📱 QR-kod till bandet</button>
+            <button class="btn btn-danger" id="deleteSetlistBtn">Radera</button>
+          </div>
+        </div>
         <button class="btn btn-accent" id="saveSetlistBtn">Spara</button>
       </div>
     </div>
@@ -341,13 +355,7 @@ Det var en [C]gång i [G]tiden
       </div>
       <div id="energyCurveChart" class="energy-curve-chart"></div>
     </div>
-    <button class="btn btn-tiny" id="showEnergyCurve" type="button" style="margin-bottom:14px;">📈 Visa energikurva</button>
 
-    <div class="practice-btn-row">
-      <button class="btn btn-ghost" id="printSetlistTitlesBtn" type="button">🖨 Skriv ut (bara titlar)</button>
-      <button class="btn btn-ghost" id="printSetlistBtn" type="button">🖨 Skriv ut (med text)</button>
-      <button class="btn btn-ghost" id="showQrBtn" type="button">📱 QR-kod till bandet</button>
-    </div>
     <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>
   </section>
 

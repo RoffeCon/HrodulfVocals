@@ -455,6 +455,24 @@ input[type="search"] { flex: 1; }
   font-family: var(--font-mono);
 }
 
+.dropdown-wrap { position: relative; display: inline-block; }
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+  z-index: 40;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.dropdown-menu .btn { width: 100%; text-align: left; justify-content: flex-start; }
+
 .field-wide { grid-column: 1 / -1; }
 
 .field-grid label.field-hidden,

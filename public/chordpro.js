@@ -118,8 +118,29 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // Delar en lång rad (text + ackordrad) i flera rader vid ordgränser, så båda
+  // raderna bryts på exakt samma ställe och ackorden hamnar kvar ovanför rätt
+  // stavelse även efter radbrytning.
+  function wrapAt(lyric, chordRow, maxChars) {
+    const total = Math.max(lyric.length, chordRow.length);
+    if (total <= maxChars) return [{ lyric, chordRow }];
+    const segments = [];
+    let start = 0;
+    while (start < total) {
+      let end = Math.min(start + maxChars, total);
+      if (end < total) {
+        const seg = lyric.slice(start, end);
+        const lastSpace = seg.lastIndexOf(' ');
+        if (lastSpace > 0) end = start + lastSpace + 1;
+      }
+      segments.push({ lyric: lyric.slice(start, end), chordRow: chordRow.slice(start, end) });
+      start = end;
+    }
+    return segments;
+  }
+
   // Bygger HTML för en ackord+text-rad, med ackord positionerade ovanför via monospace-kolumner
-  function renderLyricLine(line, steps, preferFlats, showChords) {
+  function renderLyricLine(line, steps, preferFlats, showChords, maxChars) {
     const lyric = line.lyric.length ? line.lyric : '\u00A0';
     if (!showChords || line.chords.length === 0) {
       return `<div class="line"><div class="lyric-only">${escapeHtml(lyric)}</div></div>`;
@@ -135,16 +156,18 @@
       chordRow += chordText;
       cursor = chordRow.length + 1; // minst ett mellanslag innan nästa ackord
     }
-    return `<div class="line">
-      <div class="chord-row">${escapeHtml(chordRow)}</div>
-      <div class="lyric-row">${escapeHtml(lyric)}</div>
-    </div>`;
+    const rowsToRender = maxChars ? wrapAt(lyric, chordRow, maxChars) : [{ lyric, chordRow }];
+    return rowsToRender.map(r => `<div class="line">
+      <div class="chord-row">${escapeHtml(r.chordRow)}</div>
+      <div class="lyric-row">${escapeHtml(r.lyric)}</div>
+    </div>`).join('');
   }
 
   function renderSong(text, opts) {
     const steps = (opts && opts.transpose) || 0;
     const showChords = !opts || opts.showChords !== false;
     const preferFlats = !!(opts && opts.preferFlats);
+    const maxChars = (opts && opts.maxChars) || 0;
     const sections = parseSections(text);
     let html = '';
     for (const sec of sections) {
@@ -157,7 +180,7 @@
         } else if (line.kind === 'comment') {
           html += `<div class="comment-line">${escapeHtml(line.text)}</div>`;
         } else {
-          html += renderLyricLine(line, steps, preferFlats, showChords);
+          html += renderLyricLine(line, steps, preferFlats, showChords, maxChars);
         }
       }
       html += '</div>';
