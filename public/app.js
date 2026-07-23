@@ -787,20 +787,21 @@
     if (!box) return;
     const songsById = Object.fromEntries(state.songs.map(s => [s.id, s]));
     const songItems = editingSetlist.items.filter(it => it.kind === 'song').map(it => songsById[it.songId]).filter(Boolean);
-    if (!songItems.length) { box.innerHTML = '<p class="empty-state small">Lägg till låtar för att se energikurvan.</p>'; return; }
+    if (!songItems.length) { box.innerHTML = '<p class="empty-state small">Lägg till låtar i setlistan för att se energikurvan.</p>'; return; }
     const tempos = songItems.map(s => parseInt(s.tempo, 10)).filter(n => !isNaN(n));
-    const maxTempo = tempos.length ? Math.max(...tempos, 60) : 180;
-    box.innerHTML = songItems.map(s => {
+    const maxTempo = tempos.length ? Math.max(...tempos) : 180;
+    const bars = songItems.map(s => {
       const bpm = parseInt(s.tempo, 10);
       const hasTempo = !isNaN(bpm);
       const heightPct = hasTempo ? Math.max(6, Math.round((bpm / maxTempo) * 100)) : 8;
       return `
-        <div class="energy-bar-wrap" title="${escapeHtml(s.title)}${hasTempo ? ' - ' + bpm + ' bpm' : ' - tempo okänt'}">
+        <div class="energy-bar-col" title="${escapeHtml(s.title)}${hasTempo ? ' - ' + bpm + ' bpm' : ' - tempo okänt'}">
           <span class="energy-bar-bpm">${hasTempo ? bpm : '–'}</span>
           <div class="energy-bar ${hasTempo ? '' : 'no-tempo'}" style="height:${heightPct}%"></div>
-          <span class="energy-bar-label">${escapeHtml(s.title)}</span>
         </div>`;
     }).join('');
+    const labels = songItems.map(s => `<span class="energy-bar-label">${escapeHtml(s.title)}</span>`).join('');
+    box.innerHTML = `<div class="energy-bars-row">${bars}</div><div class="energy-labels-row">${labels}</div>`;
   }
 
   document.getElementById('showEnergyCurve').addEventListener('click', () => {
@@ -1152,8 +1153,8 @@
     try {
       state.viewer.song = await Songs.get(songId);
     } catch (e) { toast(e.message, true); return; }
-    renderViewer();
     showView('viewer');
+    renderViewer();
     requestWakeLock();
     if (setlistContext) pushLiveState();
   }
@@ -1252,21 +1253,26 @@
   // långa ackord+text-rader vid hög zoom istället för att bara skrolla i sidled.
   function estimateMaxCharsPerLine() {
     const container = document.getElementById('songBody');
-    if (!container) return 0;
-    const cs = getComputedStyle(container);
+    if (!container) return 40;
+    const available = container.clientWidth - 36;
+    if (available <= 0) return 40; // vyn inte synlig/mätbar ännu - trygg standard
     const probe = document.createElement('span');
-    probe.style.font = `${parseFloat(cs.fontSize)}px ${cs.fontFamily}`;
-    probe.style.fontFamily = 'ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace';
-    probe.style.visibility = 'hidden';
     probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
     probe.style.whiteSpace = 'pre';
+    probe.style.fontFamily = 'ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace';
+    probe.style.fontSize = getComputedStyle(container).fontSize;
     probe.textContent = 'M'.repeat(50);
     document.body.appendChild(probe);
     const charWidth = probe.getBoundingClientRect().width / 50;
     document.body.removeChild(probe);
-    if (!charWidth || charWidth <= 0) return 0;
-    const available = container.clientWidth - 36;
-    return Math.max(20, Math.floor(available / charWidth));
+    if (!charWidth || charWidth <= 0 || !isFinite(charWidth)) return 40;
+    const chars = Math.floor(available / charWidth);
+    // Rimlighetsgräns: om mätningen av någon anledning skulle ge ett orimligt värde
+    // (t.ex. om ett typsnitt inte laddats än) faller vi tillbaka på en trygg standard
+    // istället för att antingen aldrig bryta rader eller bryta dem extremt kort.
+    if (chars < 15 || chars > 150) return 40;
+    return chars;
   }
 
   // Ritar om sångtexten (t.ex. efter zoomändring) utan att nollställa skrollposition

@@ -340,20 +340,20 @@ Det var en [C]gång i [G]tiden
         </div>
         <ul id="setlistSongs" class="reorder-list"></ul>
         <p id="setlistEmptyMsg" class="empty-state small">Inga låtar tillagda än.</p>
+
+        <div id="energyCurveBox" class="energy-curve-box" hidden>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:13px;color:var(--text-dim);">Energikurva - tempo för låtarna ovan</h3>
+            <button class="btn btn-tiny" id="toggleEnergyCurve" type="button">Dölj</button>
+          </div>
+          <div id="energyCurveChart" class="energy-curve-chart"></div>
+        </div>
       </div>
       <div class="setlist-builder-col">
         <h3>Lägg till från biblioteket</h3>
         <input id="addSongSearch" type="search" placeholder="Sök låt att lägga till…">
         <ul id="addSongList" class="song-list compact"></ul>
       </div>
-    </div>
-
-    <div id="energyCurveBox" class="energy-curve-box" hidden>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h3 style="margin:0;font-size:13px;color:var(--text-dim);">Energikurva (tempo per låt)</h3>
-        <button class="btn btn-tiny" id="toggleEnergyCurve" type="button">Dölj</button>
-      </div>
-      <div id="energyCurveChart" class="energy-curve-chart"></div>
     </div>
 
     <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>

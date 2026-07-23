@@ -281,6 +281,21 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Uppföljande buggfixar
+
+- **Radbrytningen fungerade faktiskt inte.** Två saker låg bakom: (1) sångtexten ritades upp
+  innan scenläget ens hunnit bli synligt, så mätningen av tillgänglig bredd skedde mot en dold
+  (0 pixlar bred) yta - ordningen är nu rättad. (2) Mätfunktionen använde webbläsarens
+  `font`-kortform på ett sätt som kunde ge en opålitlig breddmätning i vissa webbläsare. Bytt
+  mot att sätta typsnittsstorlek och -familj var för sig, plus en rimlighetsgräns som gör att
+  ett misslyckat mått aldrig längre kan sluta bryta rader helt eller bryta dem orimligt korta.
+- **Energikurvan** - stapelhöjden var alltid korrekt beräknad (verifierat: två låtar med samma
+  tempo fick exakt samma procentvärde), men CSS-layouten lät olika långa låttitlar knuffa
+  staplarna till olika höjd på skärmen. Staplar och titel-etiketter ligger nu i två helt
+  separata rader, så titellängd aldrig kan påverka stapelhöjden. Kurvan sitter också nu inuti
+  "Låtar i setlistan"-kolumnen, tydligt kopplad till rätt lista istället för att hänga oklart
+  mellan de två kolumnerna.
+
 ## Två uppskjutna punkter, nu klara
 
 - **Riktig radbrytning vid hög zoom.** Långa ackord+text-rader bryts nu vid ordgränser när de
