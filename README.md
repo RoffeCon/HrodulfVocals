@@ -281,6 +281,23 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Ännu fler buggfixar
+
+- **Radbrytningen - den riktiga boven hittad.** En gammal CSS-regel (`width: max-content` på
+  varje textrad) blev aldrig borttagen när radbrytningen byggdes. Den saboterade specifikt
+  rader **utan ackord** - vanligt när man bara skriver ren text utan musik, precis som många av
+  dina låtar. Ackordrader (som redan bryts av appens egen logik) påverkades inte lika illa,
+  vilket gjorde felet lurigt att hitta. Borttagen nu.
+- **Kugghjulet i helskärmsläget** öppnade panelen precis som den skulle, men en annan CSS-regel
+  tvingade den att förbli dold ändå (`display:none` med `!important` som alltid vann över
+  knappens egen visa/dölj-logik). Panelen visas nu som ett flytande fält ovanför de minimala
+  kontrollerna istället.
+- **Energikurvan skalade fel.** Staplarna räknades mot 0 BPM som baslinje, men riktiga tempon
+  ligger sällan i närheten av 0 (oftast 90-180) - allt klumpade ihop sig nära toppen och
+  skillnader syntes inte. Skalar nu mot det faktiska min/max-spannet i just det setet istället,
+  så en skillnad på 10-20 BPM faktiskt syns. Långa set (fler än 12 låtar) får smalare, fasta
+  stapelbredder och kurvan skrollar i sidled istället för att klämmas ihop till oläslighet.
+
 ## Uppföljande buggfixar
 
 - **Radbrytningen fungerade faktiskt inte.** Två saker låg bakom: (1) sångtexten ritades upp

@@ -789,11 +789,15 @@
     const songItems = editingSetlist.items.filter(it => it.kind === 'song').map(it => songsById[it.songId]).filter(Boolean);
     if (!songItems.length) { box.innerHTML = '<p class="empty-state small">Lägg till låtar i setlistan för att se energikurvan.</p>'; return; }
     const tempos = songItems.map(s => parseInt(s.tempo, 10)).filter(n => !isNaN(n));
+    const minTempo = tempos.length ? Math.min(...tempos) : 60;
     const maxTempo = tempos.length ? Math.max(...tempos) : 180;
+    // Skalar mot min-max i just det här setet, inte mot 0 - annars klumpar sig alla
+    // riktiga tempon (oftast 90-180) ihop nära toppen och skillnader syns inte.
+    const range = maxTempo - minTempo || 1;
     const bars = songItems.map(s => {
       const bpm = parseInt(s.tempo, 10);
       const hasTempo = !isNaN(bpm);
-      const heightPct = hasTempo ? Math.max(6, Math.round((bpm / maxTempo) * 100)) : 8;
+      const heightPct = hasTempo ? Math.round(((bpm - minTempo) / range) * 85) + 12 : 8;
       return `
         <div class="energy-bar-col" title="${escapeHtml(s.title)}${hasTempo ? ' - ' + bpm + ' bpm' : ' - tempo okänt'}">
           <span class="energy-bar-bpm">${hasTempo ? bpm : '–'}</span>
@@ -801,7 +805,8 @@
         </div>`;
     }).join('');
     const labels = songItems.map(s => `<span class="energy-bar-label">${escapeHtml(s.title)}</span>`).join('');
-    box.innerHTML = `<div class="energy-bars-row">${bars}</div><div class="energy-labels-row">${labels}</div>`;
+    const wide = songItems.length > 12 ? ' wide' : '';
+    box.innerHTML = `<div class="energy-bars-row${wide}">${bars}</div><div class="energy-labels-row${wide}">${labels}</div>`;
   }
 
   document.getElementById('showEnergyCurve').addEventListener('click', () => {
