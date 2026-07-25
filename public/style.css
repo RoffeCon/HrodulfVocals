@@ -374,12 +374,26 @@ input[type="search"] { flex: 1; }
 :root[data-theme="light"] .gig-mode-controls { background: rgba(238, 230, 211, 0.92); }
 
 #view-viewer.gig-mode .viewer-topbar,
-#view-viewer.gig-mode .viewer-controls,
-#view-viewer.gig-mode #scrollSettingsBox,
-#view-viewer.gig-mode #scrollEndBanner {
+#view-viewer.gig-mode .viewer-controls {
   display: none !important;
 }
 #view-viewer.gig-mode .song-body { padding-bottom: 90px; }
+#view-viewer.gig-mode #scrollSettingsBox {
+  position: fixed;
+  bottom: 56px;
+  left: 0;
+  right: 0;
+  z-index: 31;
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+}
+#view-viewer.gig-mode #scrollEndBanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 31;
+}
 
 /* ---------------- Editor ---------------- */
 
@@ -415,6 +429,7 @@ input[type="search"] { flex: 1; }
 .energy-curve-chart {
   margin-top: 12px;
   padding: 0 4px;
+  overflow-x: auto;
 }
 .energy-bars-row {
   display: flex;
@@ -457,6 +472,14 @@ input[type="search"] { flex: 1; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Många låtar i setet: fasta smala kolumner istället för att klämma ihop
+   staplarna tills de blir oläsliga - hela diagrammet skrollar i sidled istället. */
+.energy-bars-row.wide .energy-bar-col,
+.energy-labels-row.wide .energy-bar-label {
+  flex: 0 0 20px;
+  min-width: 20px;
+}
+.energy-bars-row.wide .energy-bar { max-width: 16px; }
 .energy-bar-bpm {
   font-size: 9px;
   color: var(--text-dim);
@@ -653,7 +676,7 @@ input[type="search"] { flex: 1; }
 .section-chorus .section-label { color: var(--amber); }
 .section-bridge .section-label { color: var(--danger); }
 
-.line { margin-bottom: 2px; width: max-content; min-width: 100%; }
+.line { margin-bottom: 2px; }
 .chord-row {
   font-family: var(--font-mono);
   color: var(--amber);
