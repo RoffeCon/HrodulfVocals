@@ -281,6 +281,23 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Versmått-uppslagsverk
+
+Ny platta på dashboarden: **📐 Versmått**. 27 poesiformer i tre kategorier:
+
+- **Versfötter** (byggstenarna) - jamb, troké, daktyl, anapest, spondé.
+- **Versmått** (versfot + radlängd) - jambisk pentameter/tetrameter, trokeisk tetrameter,
+  daktylisk hexameter, blankvers.
+- **Fasta former** - sonett (både Shakespeare- och Petrarca-form), haiku, senryu, tanka,
+  limerick, villanelle, sestina, balladmeter, rondeau, ghazal, alexandrin, fri vers,
+  blues-strof, klerihew, samt två nordiska former som borde ligga dig extra varmt om
+  hjärtat: **skaldevers/allitterationsvers** (fornnordisk, allitteration istället för
+  slutrim - perfekt för doom metal-estetiken) och **knittelvers**.
+
+Varje versmått har en kort förklaring, ett eget exempel (inget citerat från befintliga verk),
+och en fyll-i-mall. Tryck **+ Skapa låt med denna mall** för att direkt starta en ny låt i
+biblioteket med mallens radstruktur färdig att fylla i - redo att öva versmåttet i praktiken.
+
 ## Ännu fler buggfixar
 
 - **Radbrytningen - den riktiga boven hittad.** En gammal CSS-regel (`width: max-content` på

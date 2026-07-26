@@ -2300,6 +2300,63 @@
 
 
 
+  // ---------- Versmått ----------
+
+  function renderMeterList() {
+    const q = document.getElementById('meterSearch').value.trim().toLowerCase();
+    const cat = document.getElementById('meterFilterCategory').value;
+    const library = window.METER_LIBRARY || [];
+    const filtered = library.filter(m => {
+      if (cat && m.category !== cat) return false;
+      if (!q) return true;
+      return (m.name + ' ' + m.desc).toLowerCase().includes(q);
+    });
+    document.getElementById('meterList').innerHTML = filtered.map(m => `
+      <li class="rhyme-item" data-id="${m.id}">
+        <div class="rhyme-item-words meter-toggle" style="cursor:pointer;">${escapeHtml(m.name)} <span class="rhyme-type-badge">${escapeHtml(m.category)}</span></div>
+        <div class="meter-body" hidden>
+          <p class="rhyme-item-notes">${escapeHtml(m.desc)}</p>
+          <div style="font-size:11px;color:var(--text-faint);margin-top:8px;text-transform:uppercase;letter-spacing:0.05em;">Exempel</div>
+          <div class="meter-example">${escapeHtml(m.example)}</div>
+          <div style="font-size:11px;color:var(--text-faint);margin-top:8px;text-transform:uppercase;letter-spacing:0.05em;">Mall</div>
+          <pre class="meter-template">${escapeHtml(m.template)}</pre>
+          <div class="rhyme-item-actions">
+            <button class="btn btn-tiny btn-accent" data-action="use-template" type="button">+ Skapa låt med denna mall</button>
+          </div>
+        </div>
+      </li>
+    `).join('') || '<p class="empty-state small">Inga träffar.</p>';
+  }
+  document.getElementById('meterSearch').addEventListener('input', renderMeterList);
+  document.getElementById('meterFilterCategory').addEventListener('change', renderMeterList);
+
+  document.getElementById('meterList').addEventListener('click', async (e) => {
+    const item = e.target.closest('.rhyme-item');
+    if (!item) return;
+    const library = window.METER_LIBRARY || [];
+    const meter = library.find(m => m.id === item.dataset.id);
+    if (!meter) return;
+
+    if (e.target.closest('[data-action="use-template"]')) {
+      try {
+        const created = await Songs.create({
+          title: meter.name + ' - utkast',
+          text: `## Utkast (${meter.name})\n${meter.template}`,
+        });
+        toast('Ny låt skapad med mall - fyll i din text');
+        await loadSongs();
+        openEditor(created.id, 'meters');
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (e.target.closest('.meter-toggle')) {
+      const body = item.querySelector('.meter-body');
+      body.hidden = !body.hidden;
+    }
+  });
+
+  renderMeterList();
+
   // ---------- Init ----------
 
   loadSongs();

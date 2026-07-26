@@ -65,12 +65,35 @@
         <span class="tile-title">Öva utantill</span>
         <span class="tile-sub">Välj en låt, öva direkt</span>
       </button>
+      <button class="dashboard-tile" data-view="meters" type="button">
+        <span class="tile-icon">📐</span>
+        <span class="tile-title">Versmått</span>
+        <span class="tile-sub">27 poesiformer, med mallar att öva på</span>
+      </button>
       <button class="dashboard-tile disabled" type="button" disabled>
         <span class="tile-icon">🎒</span>
         <span class="tile-title">Utrustning</span>
         <span class="tile-sub">Kommer snart - packlistor för gig</span>
       </button>
     </div>
+  </section>
+
+  <!-- VERSMÅTT -->
+  <section id="view-meters" class="view">
+    <div class="toolbar">
+      <input id="meterSearch" type="search" placeholder="Sök versmått…" autocomplete="off">
+      <select id="meterFilterCategory">
+        <option value="">Alla kategorier</option>
+        <option value="Versfot">Versfötter</option>
+        <option value="Versmått">Versmått</option>
+        <option value="Fast form">Fasta former</option>
+      </select>
+    </div>
+    <p style="font-size:12.5px;color:var(--text-dim);margin-top:-4px;">
+      Tryck på ett versmått för att se förklaring och exempel. "Skapa låt med denna mall"
+      startar en ny låt i biblioteket med en färdig radstruktur att fylla i.
+    </p>
+    <ul id="meterList" class="rhyme-list"></ul>
   </section>
 
   <!-- BIBLIOTEK -->
@@ -579,6 +602,7 @@ Det var en [C]gång i [G]tiden
   </div>
 </div>
 
+<script src="meters.js"></script>
 <script src="chordpro.js"></script>
 <script src="app.js"></script>
 </body>

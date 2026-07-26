@@ -1,10 +1,11 @@
-const CACHE = 'lyricsmaster-shell-v13';
+const CACHE = 'lyricsmaster-shell-v14';
 const SHELL = [
   '/',
   '/index.html',
   '/style.css',
   '/app.js',
   '/chordpro.js',
+  '/meters.js',
   '/manifest.json',
   '/icons/icon-192.png',
   '/display.html',

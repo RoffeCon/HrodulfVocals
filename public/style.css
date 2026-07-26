@@ -480,6 +480,18 @@ input[type="search"] { flex: 1; }
   min-width: 20px;
 }
 .energy-bars-row.wide .energy-bar { max-width: 16px; }
+.meter-example, .meter-template {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-top: 6px;
+  color: var(--text-dim);
+}
+.meter-template { color: var(--amber); }
+
 .energy-bar-bpm {
   font-size: 9px;
   color: var(--text-dim);
