@@ -281,6 +281,13 @@ automatiskt. Så här fixar du det:
 
 Justera sökvägen i skriptet om ditt repo inte ligger i `~/HrodulfVocals`.
 
+## Kompositör dold som standard i scenläget
+
+Kompositör/artist är inte scenkritisk information och gjorde det bara rörigt på små skärmar.
+Döljs nu som standard i scenläget - en liten **ⓘ Visa kompositör**-knapp under titeln tar fram
+den vid behov istället. Tonart/kapo/tempo/taktart (det du faktiskt behöver mitt i en låt)
+syns som förut.
+
 ## Versmått-uppslagsverk
 
 Ny platta på dashboarden: **📐 Versmått**. 27 poesiformer i tre kategorier:

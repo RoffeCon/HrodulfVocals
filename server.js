@@ -606,7 +606,7 @@ app.post('/api/live', (req, res) => {
 });
 
 app.get('/api/info', (req, res) => {
-  res.json({ name: 'LyricsMaster', version: '1.0.0', time: new Date().toISOString(), port: PORT, ips: localIPs() });
+  res.json({ name: 'LyricsMaster', version: require('./package.json').version, time: new Date().toISOString(), port: PORT, ips: localIPs() });
 });
 
 // Fullständig backup av all data - för nedladdning i klienten.
