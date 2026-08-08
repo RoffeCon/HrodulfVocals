@@ -43,6 +43,7 @@
       <img src="icons/icon-192.png" alt="LyricsMaster" class="dashboard-logo">
       <h1>LyricsMaster</h1>
       <p>Find. Rhyme. Create.</p>
+      <p id="dashboardVersionLine" style="font-size:10px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono);">v…</p>
     </div>
     <div class="dashboard-grid">
       <button class="dashboard-tile" data-view="library" type="button">
@@ -229,6 +230,8 @@ Det var en [C]gång i [G]tiden
       <div class="viewer-title-block">
         <div id="viewerTitle" class="viewer-title"></div>
         <div id="viewerMeta" class="viewer-meta"></div>
+        <button class="btn btn-tiny" id="viewerComposerToggle" type="button" style="margin-top:3px;" hidden>ⓘ Visa kompositör</button>
+        <div id="viewerComposerLine" class="viewer-meta" hidden></div>
         <div id="viewerVersionChips" class="version-chips" style="justify-content:center; margin-top:4px;"></div>
       </div>
       <button class="btn btn-ghost" id="practiceFromViewer">Öva utantill</button>
@@ -439,6 +442,7 @@ Det var en [C]gång i [G]tiden
 <div id="infoModal" class="modal" hidden>
   <div class="modal-card">
     <h3>Anslutning &amp; backup</h3>
+    <p id="appVersionLine" style="font-size:12px;color:var(--text-faint);margin-top:-8px;font-family:var(--font-mono);">Version …</p>
     <div id="infoIpBox" style="font-size:13.5px;color:var(--text-dim);margin-bottom:14px;">Hämtar IP-adress…</div>
     <p style="font-size:12.5px;color:var(--text-dim);">Skriv in adressen ovan i en webbläsare på datorn (samma wifi-nätverk) för att redigera därifrån.</p>
     <hr>

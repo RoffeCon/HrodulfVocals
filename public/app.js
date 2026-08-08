@@ -106,6 +106,7 @@
       if (info.ips && info.ips.length) {
         document.getElementById('dashboardDisplayUrl').textContent = `http://${info.ips[0].address}:${info.port}/display.html`;
       }
+      document.getElementById('dashboardVersionLine').textContent = 'v' + info.version;
     } catch (_) {}
   })();
 
@@ -1191,12 +1192,22 @@
       ? window.Songbook.transposeChord(song.key, state.viewer.transpose, preferFlats)
       : song.key;
     const metaParts = [];
-    if (song.composer) metaParts.push(song.composer);
     if (song.key) metaParts.push('Tonart: ' + transposedKey + (state.viewer.transpose ? ` (orig. ${song.key})` : ''));
     if (song.capo) metaParts.push('Kapo: ' + song.capo);
     if (song.tempo) metaParts.push(song.tempo + ' bpm');
     if (song.timeSignature) metaParts.push(song.timeSignature);
     document.getElementById('viewerMeta').textContent = metaParts.join(' · ');
+
+    // Kompositör/artist är inte scenkritisk info och gör det bara rörigt på små
+    // skärmar (särskilt i gigläget) - döljs som standard, visas bara på begäran.
+    const composerBits = [song.composer, song.artist].filter(Boolean).join(' · ');
+    const composerToggle = document.getElementById('viewerComposerToggle');
+    const composerLine = document.getElementById('viewerComposerLine');
+    composerLine.textContent = composerBits;
+    composerLine.hidden = true;
+    composerToggle.textContent = 'ⓘ Visa kompositör';
+    composerToggle.hidden = !composerBits;
+
     renderVersionChips('viewerVersionChips', song, song.id, (pickedId) => openViewer(pickedId, state.viewer.setlistContext));
 
     document.getElementById('songBody').style.setProperty('--song-font-scale', state.viewer.fontScale);
@@ -1221,6 +1232,13 @@
       nav.hidden = true;
     }
   }
+
+  document.getElementById('viewerComposerToggle').addEventListener('click', () => {
+    const line = document.getElementById('viewerComposerLine');
+    const btn = document.getElementById('viewerComposerToggle');
+    line.hidden = !line.hidden;
+    btn.textContent = line.hidden ? 'ⓘ Visa kompositör' : 'ⓘ Dölj kompositör';
+  });
 
   document.getElementById('viewerBack').addEventListener('click', () => {
     releaseWakeLock();
@@ -1530,6 +1548,7 @@
     box.textContent = 'Hämtar IP-adress…';
     try {
       const info = await api('/api/info');
+      document.getElementById('appVersionLine').textContent = 'Version ' + info.version;
       if (info.ips && info.ips.length) {
         box.innerHTML = info.ips.map(ip => {
           const isMobile = /rmnet|ccmni|pdp|data/i.test(ip.iface);
