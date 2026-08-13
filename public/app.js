@@ -1196,18 +1196,16 @@
     if (song.capo) metaParts.push('Kapo: ' + song.capo);
     if (song.tempo) metaParts.push(song.tempo + ' bpm');
     if (song.timeSignature) metaParts.push(song.timeSignature);
-    if (song.composer) metaParts.push(song.composer);
-    if (song.artist) metaParts.push(song.artist);
-    document.getElementById('viewerMeta').textContent = '';
+    document.getElementById('viewerMeta').textContent = metaParts.join(' · ');
 
-    // Ingen metadata är scenkritisk att alltid se och tar för mycket plats på små
-    // skärmar - döljs som standard, visas bara på begäran.
-    const composerBits = metaParts.join(' · ');
+    // Kompositör/artist är inte scenkritisk info och gör det bara rörigt på små
+    // skärmar (särskilt i gigläget) - döljs som standard, visas bara på begäran.
+    const composerBits = [song.composer, song.artist].filter(Boolean).join(' · ');
     const composerToggle = document.getElementById('viewerComposerToggle');
     const composerLine = document.getElementById('viewerComposerLine');
     composerLine.textContent = composerBits;
     composerLine.hidden = true;
-    composerToggle.textContent = 'ⓘ Visa info';
+    composerToggle.textContent = 'ⓘ Visa kompositör';
     composerToggle.hidden = !composerBits;
 
     renderVersionChips('viewerVersionChips', song, song.id, (pickedId) => openViewer(pickedId, state.viewer.setlistContext));
@@ -1239,7 +1237,7 @@
     const line = document.getElementById('viewerComposerLine');
     const btn = document.getElementById('viewerComposerToggle');
     line.hidden = !line.hidden;
-    btn.textContent = line.hidden ? 'ⓘ Visa info' : 'ⓘ Dölj info';
+    btn.textContent = line.hidden ? 'ⓘ Visa kompositör' : 'ⓘ Dölj kompositör';
   });
 
   document.getElementById('viewerBack').addEventListener('click', () => {
