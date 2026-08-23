@@ -1020,6 +1020,78 @@
     if (!menu.hidden && !e.target.closest('.dropdown-wrap')) menu.hidden = true;
   });
 
+  // ---------- Utrustning ----------
+
+  async function loadGear() {
+    try {
+      const items = await api('/api/gear');
+      const list = document.getElementById('gearList');
+      if (!items.length) { list.innerHTML = '<p class="empty-state small">Inga prylar tillagda än.</p>'; return; }
+      list.innerHTML = items.map(item => `
+        <li class="rhyme-item" data-id="${item.id}">
+          <div class="rhyme-item-row">
+            <input type="checkbox" class="gear-packed-check" data-id="${item.id}" ${item.packed ? 'checked' : ''}>
+            <div class="rhyme-item-main">
+              <div class="rhyme-item-words">${escapeHtml(item.name)}</div>
+              <div class="rhyme-item-meta">${[item.owner, item.category].filter(Boolean).map(escapeHtml).join(' · ')}</div>
+              ${item.notes ? `<div class="rhyme-item-notes">${escapeHtml(item.notes)}</div>` : ''}
+              <div class="rhyme-item-actions">
+                <button class="btn btn-tiny btn-danger" data-action="delete-gear" type="button">✕</button>
+              </div>
+            </div>
+          </div>
+        </li>`).join('');
+    } catch (e) { toast(e.message, true); }
+  }
+
+  document.getElementById('gearBackBtn').addEventListener('click', () => showView('dashboard'));
+
+  document.getElementById('addGearBtn').addEventListener('click', async () => {
+    const name = document.getElementById('gearName').value.trim();
+    if (!name) { toast('Skriv ett namn', true); return; }
+    try {
+      await api('/api/gear', { method: 'POST', body: JSON.stringify({
+        name,
+        owner: document.getElementById('gearOwner').value.trim(),
+        category: document.getElementById('gearCategory').value.trim(),
+        notes: document.getElementById('gearNotes').value.trim(),
+      }) });
+      document.getElementById('gearName').value = '';
+      document.getElementById('gearOwner').value = '';
+      document.getElementById('gearCategory').value = '';
+      document.getElementById('gearNotes').value = '';
+      toast('Prylen tillagd');
+      await loadGear();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('gearList').addEventListener('click', async (e) => {
+    if (e.target.closest('[data-action="delete-gear"]')) {
+      const id = e.target.closest('.rhyme-item').dataset.id;
+      if (!confirm('Radera prylen?')) return;
+      try { await api('/api/gear/' + id, { method: 'DELETE' }); toast('Raderad'); await loadGear(); } catch (err) { toast(err.message, true); }
+    }
+  });
+  document.getElementById('gearList').addEventListener('change', async (e) => {
+    if (!e.target.classList.contains('gear-packed-check')) return;
+    try { await api('/api/gear/' + e.target.dataset.id, { method: 'PUT', body: JSON.stringify({ packed: e.target.checked }) }); } catch (err) { toast(err.message, true); }
+  });
+
+  document.getElementById('gearResetBtn').addEventListener('click', async () => {
+    if (!confirm('Nollställ avbockning för alla prylar inför nästa gig?')) return;
+    try { await api('/api/gear/reset-packed', { method: 'POST' }); toast('Avbockning nollställd'); await loadGear(); } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('gearQrBtn').addEventListener('click', () => {
+    document.getElementById('qrModalTitle').textContent = 'QR-kod: Utrustning';
+    document.getElementById('qrImage').src = `/api/gear/qr?t=${Date.now()}`;
+    document.getElementById('qrModal').hidden = false;
+  });
+
+  document.querySelectorAll('.dashboard-tile[data-view="gear"]').forEach(tile => {
+    tile.addEventListener('click', loadGear);
+  });
+
   document.getElementById('showQrBtn').addEventListener('click', () => {
     if (!state.currentSetlistId) { toast('Spara setlistan först', true); return; }
     document.getElementById('qrModalTitle').textContent = 'QR-kod: ' + (editingSetlist.name || 'Setlista');

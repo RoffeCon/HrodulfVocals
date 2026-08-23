@@ -15,6 +15,7 @@ const setlists = new JsonStore('setlists.json', DATA_DIR);
 const rhymes = new JsonStore('rhymes.json', DATA_DIR); // gammal modell, kvar bara för engångsmigrering
 const rhymeWords = new JsonStore('rhymeWords.json', DATA_DIR);
 const rhymeLinks = new JsonStore('rhymeLinks.json', DATA_DIR);
+const gear = new JsonStore('gear.json', DATA_DIR);
 
 // Engångsmigrering: gamla rim (ordgrupper) -> enskilda ord + länkar. Körs bara om det
 // finns gammal data och den nya databasen fortfarande är tom.
@@ -610,6 +611,81 @@ app.get('/api/info', (req, res) => {
 });
 
 // Fullständig backup av all data - för nedladdning i klienten.
+// ---------- Utrustning ----------
+// Fritt "ägare"-fält per pryl (t.ex. "Rolf", "Gitarrist", eller tomt för
+// gemensam bandutrustning) - täcker både personlig och delad utrustning utan
+// att tvinga fram en strikt per-person-modell.
+
+app.get('/api/gear', (req, res) => {
+  res.json(gear.all().slice().sort((a, b) => a.name.localeCompare(b.name, 'sv')));
+});
+
+app.post('/api/gear', async (req, res) => {
+  const body = req.body || {};
+  const name = String(body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Namn krävs' });
+  const now = new Date().toISOString();
+  const item = {
+    id: makeId(),
+    name,
+    category: body.category || '',
+    owner: body.owner || '',
+    notes: body.notes || '',
+    packed: !!body.packed,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await gear.insert(item);
+  broadcast({ type: 'gear-changed', reason: 'created', id: item.id });
+  res.status(201).json(item);
+});
+
+app.put('/api/gear/:id', async (req, res) => {
+  const existing = gear.get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Prylen hittades inte' });
+  const body = req.body || {};
+  const patch = {
+    ...('name' in body && body.name.trim() ? { name: body.name.trim() } : {}),
+    ...('category' in body ? { category: body.category } : {}),
+    ...('owner' in body ? { owner: body.owner } : {}),
+    ...('notes' in body ? { notes: body.notes } : {}),
+    ...('packed' in body ? { packed: !!body.packed } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+  const updated = await gear.update(req.params.id, patch);
+  broadcast({ type: 'gear-changed', reason: 'updated', id: updated.id });
+  res.json(updated);
+});
+
+app.delete('/api/gear/:id', async (req, res) => {
+  const ok = await gear.remove(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Prylen hittades inte' });
+  broadcast({ type: 'gear-changed', reason: 'deleted', id: req.params.id });
+  res.status(204).end();
+});
+
+// Nollställer avbockningen inför nästa gig, utan att radera listan.
+app.post('/api/gear/reset-packed', async (req, res) => {
+  for (const item of gear.all()) {
+    await gear.update(item.id, { packed: false, updatedAt: new Date().toISOString() });
+  }
+  broadcast({ type: 'gear-changed', reason: 'reset' });
+  res.json({ reset: true });
+});
+
+app.get('/api/gear/qr', async (req, res) => {
+  const ips = localIPs();
+  const host = ips.length ? ips[0].address : req.hostname;
+  const url = `http://${host}:${PORT}/gear-view.html`;
+  try {
+    const png = await QRCode.toBuffer(url, { width: 320, margin: 2 });
+    res.set('Content-Type', 'image/png');
+    res.send(png);
+  } catch (e) {
+    res.status(500).json({ error: 'Kunde inte generera QR-kod' });
+  }
+});
+
 app.get('/api/backup', (req, res) => {
   res.json({
     exportedAt: new Date().toISOString(),
@@ -619,6 +695,7 @@ app.get('/api/backup', (req, res) => {
     setlists: setlists.all(),
     rhymeWords: rhymeWords.all(),
     rhymeLinks: rhymeLinks.all(),
+    gear: gear.all(),
   });
 });
 
@@ -633,15 +710,18 @@ app.post('/api/restore', async (req, res) => {
   await setlists.replaceAll(body.setlists);
   if (Array.isArray(body.rhymeWords)) await rhymeWords.replaceAll(body.rhymeWords);
   if (Array.isArray(body.rhymeLinks)) await rhymeLinks.replaceAll(body.rhymeLinks);
+  if (Array.isArray(body.gear)) await gear.replaceAll(body.gear);
   broadcast({ type: 'songs-changed', reason: 'restored' });
   broadcast({ type: 'setlists-changed', reason: 'restored' });
   broadcast({ type: 'rhyme-words-changed', reason: 'restored' });
   broadcast({ type: 'rhyme-links-changed', reason: 'restored' });
+  broadcast({ type: 'gear-changed', reason: 'restored' });
   res.json({
     songs: body.songs.length,
     setlists: body.setlists.length,
     rhymeWords: (body.rhymeWords || []).length,
     rhymeLinks: (body.rhymeLinks || []).length,
+    gear: (body.gear || []).length,
   });
 });
 
