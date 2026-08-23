@@ -71,10 +71,10 @@
         <span class="tile-title">Versmått</span>
         <span class="tile-sub">27 poesiformer, med mallar att öva på</span>
       </button>
-      <button class="dashboard-tile disabled" type="button" disabled>
+      <button class="dashboard-tile" data-view="gear" type="button">
         <span class="tile-icon">🎒</span>
         <span class="tile-title">Utrustning</span>
-        <span class="tile-sub">Kommer snart - packlistor för gig</span>
+        <span class="tile-sub">Packlista, delbar med bandet</span>
       </button>
     </div>
   </section>
@@ -95,6 +95,27 @@
       startar en ny låt i biblioteket med en färdig radstruktur att fylla i.
     </p>
     <ul id="meterList" class="rhyme-list"></ul>
+  </section>
+
+  <!-- UTRUSTNING -->
+  <section id="view-gear" class="view">
+    <div class="editor-header">
+      <button class="btn btn-ghost" id="gearBackBtn" type="button">← Tillbaka</button>
+      <div class="editor-actions">
+        <button class="btn btn-tiny" id="gearQrBtn" type="button">📱 QR till bandet</button>
+        <button class="btn btn-tiny btn-danger" id="gearResetBtn" type="button">Nollställ avbockning</button>
+      </div>
+    </div>
+    <div class="rhyme-add">
+      <input id="gearName" type="text" placeholder="Namn, t.ex. Gitarrkabel">
+      <div class="rhyme-add-row">
+        <input id="gearOwner" type="text" placeholder="Ägare (valfritt, t.ex. Rolf/Gitarrist)">
+        <input id="gearCategory" type="text" placeholder="Kategori (valfritt)">
+      </div>
+      <input id="gearNotes" type="text" placeholder="Anteckning (valfritt)">
+      <button class="btn btn-accent btn-wide" id="addGearBtn" type="button">+ Lägg till pryl</button>
+    </div>
+    <ul id="gearList" class="rhyme-list"></ul>
   </section>
 
   <!-- BIBLIOTEK -->

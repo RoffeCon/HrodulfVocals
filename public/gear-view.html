@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Utrustning - LyricsMaster</title>
+<meta name="theme-color" content="#15120e">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
+  .gv-header { text-align: center; margin-bottom: 20px; }
+  .gv-header h1 { font-family: var(--font-display); margin-bottom: 2px; }
+  .gv-owner-group { margin-bottom: 18px; }
+  .gv-owner-label {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--amber); margin-bottom: 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px;
+  }
+  .gv-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+    padding: 10px 12px; margin-bottom: 6px; cursor: pointer;
+  }
+  .gv-item input { width: 20px; height: 20px; flex-shrink: 0; }
+  .gv-item.packed .gv-item-name { text-decoration: line-through; color: var(--text-faint); }
+  .gv-item-name { font-weight: 600; font-size: 14px; }
+  .gv-item-notes { font-size: 12px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="gv-header">
+  <h1>Utrustning</h1>
+  <p style="color:var(--text-dim);font-size:13px;">Bocka av det du packat - synkas live till alla.</p>
+</div>
+<div id="gvList"></div>
+
+<script src="gear-view.js"></script>
+</body>
+</html>
