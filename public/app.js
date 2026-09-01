@@ -1,11 +1,13 @@
 (function () {
   'use strict';
 
-  const state = {
+const state = {
     songs: [],
     setlists: [],
+    marksList: [], // manuellt markerade rader per låt: {songId, lines[], fingerprint}
     currentSongId: null,
     currentSetlistId: null,
+    screenMode: 'song',
     editorReturnView: 'library',
     viewer: {
       songId: null,
@@ -52,11 +54,16 @@
     update: (id, data) => api('/api/setlists/' + id, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id) => api('/api/setlists/' + id, { method: 'DELETE' }),
   };
-  const Rhymes = {
+const Rhymes = {
     list: () => api('/api/rhymes'),
     create: (data) => api('/api/rhymes', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, data) => api('/api/rhymes/' + id, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id) => api('/api/rhymes/' + id, { method: 'DELETE' }),
+  };
+  const Marks = {
+    list: () => api('/api/marks'),
+    get: (id) => api('/api/marks/' + id),
+    save: (id, data) => api('/api/marks/' + id, { method: 'PUT', body: JSON.stringify(data) }),
   };
 
   // ---------- Toast ----------
@@ -127,8 +134,10 @@
         if (state.viewer.songId === msg.id) refreshViewerSong();
       } else if (msg.type === 'setlists-changed') {
         loadSetlists();
-      } else if (msg.type === 'rhymes-changed') {
+} else if (msg.type === 'rhymes-changed') {
         loadRhymes();
+      } else if (msg.type === 'marks-changed') {
+        loadMarks();
       }
     };
   }
@@ -212,7 +221,8 @@
         }
       }
     }
-    document.getElementById('songList').innerHTML = html;
+document.getElementById('songList').innerHTML = html;
+    renderMarkBadges();
   }
 
   document.getElementById('songSearch').addEventListener('input', renderLibrary);
@@ -271,7 +281,7 @@
     } else if (e.target.closest('[data-action="delete"]')) {
       const song = state.songs.find(s => s.id === id);
       if (!confirm(`Radera "${song ? song.title : 'låten'}" permanent?`)) return;
-      try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); } catch (err) { toast(err.message, true); }
+try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await loadMarks(); } catch (err) { toast(err.message, true); }
     } else if (e.target.closest('[data-action="rename"]')) {
       startInlineRename(row, id);
     } else if (pendingLibraryAction === 'practice') {
@@ -952,6 +962,16 @@
     } catch (e) { toast(e.message, true); }
   });
 
+  document.getElementById('showSetlistOnScreen').addEventListener('click', async () => {
+    if (!state.currentSetlistId) { toast('Spara setlistan först', true); return; }
+    if (!deriveSongIds(editingSetlist.items).length) { toast('Lägg till minst en låt först', true); return; }
+    try {
+      await api('/api/live', { method: 'POST', body: JSON.stringify({ setlistId: state.currentSetlistId, songIndex: null, mode: 'setlist' }) });
+      state.screenMode = 'setlist';
+      toast('Setlistan visas nu på skärmen');
+    } catch (e) { toast('Kunde inte nå skärmen', true); }
+  });
+
   document.getElementById('startPerformance').addEventListener('click', () => {
     const songIds = deriveSongIds(editingSetlist.items);
     if (!songIds.length) { toast('Lägg till minst en låt först', true); return; }
@@ -1161,19 +1181,51 @@
     } catch (e) { toast(e.message, true); return; }
     showView('viewer');
     renderViewer();
+    renderScreenRemote();
     requestWakeLock();
     if (setlistContext) pushLiveState();
   }
 
   // Skickar vidare vilken låt som spelas till en ev. ansluten skärm (t.ex. Raspberry
   // Pi i replokalen) via /api/live, som sen når displayen genom websocket-broadcasten.
-  function pushLiveState() {
+  function pushLiveState(mode) {
     const ctx = state.viewer.setlistContext;
     const payload = ctx
-      ? { setlistId: ctx.setlist.id, songIndex: ctx.index }
-      : { setlistId: null, songIndex: null };
-    api('/api/live', { method: 'POST', body: JSON.stringify(payload) }).catch(() => {});
+      ? { setlistId: ctx.setlist.id, songIndex: ctx.index, mode: mode || state.screenMode || 'song' }
+      : { setlistId: null, songIndex: null, mode: 'idle' };
+    if (ctx) state.screenMode = payload.mode;
+    api('/api/live', { method: 'POST', body: JSON.stringify(payload) })
+      .then(() => renderScreenRemote())
+      .catch(() => {});
   }
+
+  // Fjärrkontroll för den externa skärmen: växla mellan hela setlistan,
+  // aktuell låt (+ nästa) och avstängd vy - allt går via /api/live.
+  function renderScreenRemote() {
+    const remote = document.getElementById('screenRemote');
+    if (!remote) return;
+    remote.hidden = !state.viewer.setlistContext;
+    const mode = state.screenMode || 'song';
+    remote.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('active'));
+    const map = { setlist: 'remoteShowSetlist', song: 'remoteShowSong', idle: 'remoteBlank' };
+    const el = document.getElementById(map[mode]);
+    if (el) el.classList.add('active');
+  }
+
+  function setScreenMode(mode) {
+    state.screenMode = mode;
+    const ctx = state.viewer.setlistContext;
+    const payload = ctx
+      ? { setlistId: ctx.setlist.id, songIndex: ctx.index, mode }
+      : { setlistId: null, songIndex: null, mode: 'idle' };
+    api('/api/live', { method: 'POST', body: JSON.stringify(payload) })
+      .then(() => { renderScreenRemote(); toast(mode === 'setlist' ? 'Visar setlistan på skärmen' : mode === 'song' ? 'Visar aktuell låt på skärmen' : 'Skärmen tömd'); })
+      .catch(() => toast('Kunde inte nå skärmen', true));
+  }
+
+  document.getElementById('remoteShowSetlist').addEventListener('click', () => setScreenMode('setlist'));
+  document.getElementById('remoteShowSong').addEventListener('click', () => setScreenMode('song'));
+  document.getElementById('remoteBlank').addEventListener('click', () => setScreenMode('idle'));
 
   async function refreshViewerSong() {
     if (!state.viewer.songId) return;
@@ -1247,7 +1299,8 @@
     stopAutoscroll();
     exitGigMode();
     if (state.viewer.setlistContext) {
-      api('/api/live', { method: 'POST', body: JSON.stringify({ setlistId: null, songIndex: null }) }).catch(() => {});
+      state.screenMode = 'idle';
+      api('/api/live', { method: 'POST', body: JSON.stringify({ setlistId: null, songIndex: null, mode: 'idle' }) }).catch(() => {});
     }
     showView(state.viewer.setlistContext ? 'setlist-editor' : 'library');
   });
@@ -1619,15 +1672,26 @@
 
   // ---------- Öva utantill (inlärningsläge) ----------
 
-  const practice = {
+const practice = {
     songId: null,
     title: '',
-    lines: [],
+    lines: [],        // rader i denna övning: { text, sectionLabel, realIdx }
+    allLines: [],     // alla rader i låten
     index: 0,
-    attempted: 0,
-    firstTryCorrect: 0,
+    marked: new Set(),// realIdx på rader du själv markerat att tänka extra på
+    mode: 'all',      // 'all' | 'marked'
+    textHash: '',
     returnView: 'viewer',
   };
+
+  function textHash(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(36);
+  }
 
   function tokenizeDisplay(str) {
     return str.trim().split(/\s+/).filter(Boolean);
@@ -1676,23 +1740,44 @@
     return lines;
   }
 
-  async function openPractice(songId, returnView) {
+async function openPractice(songId, returnView) {
     let song;
     try { song = await Songs.get(songId); } catch (e) { toast(e.message, true); return; }
-    const lines = buildPracticeLines(song.text);
-    if (!lines.length) { toast('Den här låten har ingen text att öva på än', true); return; }
+    const allLines = buildPracticeLines(song.text).map((l, i) => ({ ...l, realIdx: i }));
+    if (!allLines.length) { toast('Den här låten har ingen text att öva på än', true); return; }
     practice.songId = songId;
     practice.title = song.title;
-    practice.lines = lines;
-    practice.index = 0;
-    practice.attempted = 0;
-    practice.firstTryCorrect = 0;
+    practice.allLines = allLines;
+    practice.textHash = textHash(song.text);
     practice.returnView = returnView;
+
+    // Hämta dina egna radmarkeringar. Har texten ändrats sedan du markerade
+    // stämmer radindexen inte längre, så då börjar vi om med tom markering.
+    let marks = null;
+    try { marks = await Marks.get(songId); } catch (_) {}
+    practice.marked = new Set(
+      marks && (!marks.fingerprint || marks.fingerprint === practice.textHash)
+        ? (marks.lines || []).filter(i => i < allLines.length)
+        : []
+    );
+
+    startPracticeRun('all');
+    document.getElementById('toast').hidden = true; // ev. kvarstående toast från plattklicket
     document.getElementById('practiceTitle').textContent = song.title;
+    showView('practice');
+  }
+
+  // Startar (eller startar om) en genomgång i valt läge.
+  function startPracticeRun(mode) {
+    practice.mode = mode === 'marked' && practice.marked.size ? 'marked' : 'all';
+    practice.lines = practice.mode === 'marked'
+      ? practice.allLines.filter(l => practice.marked.has(l.realIdx))
+      : practice.allLines;
+    practice.index = 0;
     document.getElementById('practiceLog').innerHTML = '';
     document.getElementById('practiceSummary').hidden = true;
     document.getElementById('practiceInputArea').hidden = false;
-    showView('practice');
+    renderPracticeModeBar();
     renderPracticeStep();
   }
 
@@ -1712,7 +1797,20 @@
     document.getElementById('checkLineBtn').hidden = false;
     document.getElementById('revealLineBtn').hidden = false;
     document.getElementById('nextLineBtn').hidden = true;
+    renderMarkButton();
     input.focus();
+  }
+
+  function renderMarkButton() {
+    const btn = document.getElementById('markLineBtn');
+    if (!btn) return;
+    const line = practice.lines[practice.index];
+    if (!line) { btn.hidden = true; return; }
+    const on = practice.marked.has(line.realIdx);
+    btn.hidden = false;
+    btn.classList.toggle('active', on);
+    btn.textContent = on ? '★ Markerad' : '☆ Markera raden';
+    btn.title = on ? 'Ta bort markeringen' : 'Markera raden som en du behöver tänka extra på';
   }
 
   function appendPracticeLog(statusClass, html) {
@@ -1733,24 +1831,25 @@
   }
 
   function finishPracticeLine(statusClass, html) {
+    const cur = practice.lines[practice.index];
+    if (cur && practice.marked.has(cur.realIdx)) statusClass += ' marked';
     appendPracticeLog(statusClass, html);
     const input = document.getElementById('practiceInput');
     input.disabled = true;
     input.value = '';
     document.getElementById('checkLineBtn').hidden = true;
     document.getElementById('revealLineBtn').hidden = true;
+    document.getElementById('markLineBtn').hidden = true;
     document.getElementById('nextLineBtn').hidden = false;
     document.getElementById('nextLineBtn').focus();
   }
 
-  function checkCurrentLine() {
+function checkCurrentLine() {
     const line = practice.lines[practice.index];
     const userText = document.getElementById('practiceInput').value;
     if (!userText.trim()) { toast('Skriv något, eller tryck Visa rad', true); return; }
     const { ops, fullyCorrect } = diffLine(line.text, userText);
-    practice.attempted++;
     if (fullyCorrect) {
-      practice.firstTryCorrect++;
       finishPracticeLine('correct', `<span class="diff-match">${escapeHtml(line.text)}</span>`);
     } else {
       finishPracticeLine('partial', renderDiffHtml(ops));
@@ -1776,9 +1875,8 @@
     try { localStorage.setItem('songbook-practice-enter', e.target.checked ? '1' : '0'); } catch (_) {}
   });
 
-  document.getElementById('revealLineBtn').addEventListener('click', () => {
+document.getElementById('revealLineBtn').addEventListener('click', () => {
     const line = practice.lines[practice.index];
-    practice.attempted++;
     finishPracticeLine('revealed', `<span class="diff-match">${escapeHtml(line.text)}</span>`);
   });
 
@@ -1791,23 +1889,94 @@
     }
   });
 
-  function showPracticeSummary() {
+function showPracticeSummary() {
     document.getElementById('practiceInputArea').hidden = true;
     document.getElementById('practiceSummary').hidden = false;
-    document.getElementById('practiceScoreText').textContent =
-      `${practice.firstTryCorrect} av ${practice.lines.length} rader rätt på första försöket.`;
+    const n = practice.lines.length;
+    document.getElementById('practiceScoreText').textContent = practice.mode === 'marked'
+      ? (n === 1 ? 'Du gick igenom din markerade rad.' : `Du gick igenom dina ${n} markerade rader.`)
+      : `Du gick igenom hela texten, ${n} ${n === 1 ? 'rad' : 'rader'}.`;
+    const markedBtn = document.getElementById('practiceMarkedBtn');
+    markedBtn.hidden = !practice.marked.size;
+    markedBtn.textContent = practice.marked.size === 1 ? '★ Öva markerad rad' : `★ Öva ${practice.marked.size} markerade rader`;
   }
 
   document.getElementById('practiceBack').addEventListener('click', () => showView(practice.returnView));
   document.getElementById('practiceSummaryBack').addEventListener('click', () => showView(practice.returnView));
-  document.getElementById('practiceAgainBtn').addEventListener('click', () => openPractice(practice.songId, practice.returnView));
-  document.getElementById('restartPractice').addEventListener('click', () => {
-    if (confirm('Börja om övningen från början?')) openPractice(practice.songId, practice.returnView);
-  });
+  document.getElementById('practiceAgainBtn').addEventListener('click', () => startPracticeRun(practice.mode));
+  document.getElementById('practiceMarkedBtn').addEventListener('click', () => startPracticeRun('marked'));
+  document.getElementById('restartPractice').addEventListener('click', () => startPracticeRun(practice.mode));
 
   document.getElementById('practiceFromViewer').addEventListener('click', () => {
     if (state.viewer.songId) openPractice(state.viewer.songId, 'viewer');
   });
+
+  // Markera/avmarkera aktuell rad - helt manuellt, sparas direkt.
+  document.getElementById('markLineBtn').addEventListener('click', async () => {
+    const line = practice.lines[practice.index];
+    if (!line) return;
+    if (practice.marked.has(line.realIdx)) practice.marked.delete(line.realIdx);
+    else practice.marked.add(line.realIdx);
+    renderMarkButton();
+    renderPracticeModeBar();
+    try {
+      await Marks.save(practice.songId, { lines: [...practice.marked], fingerprint: practice.textHash });
+      loadMarks();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  function renderPracticeModeBar() {
+    const bar = document.getElementById('practiceModeBar');
+    const text = document.getElementById('practiceModeText');
+    const btn = document.getElementById('practiceModeToggle');
+    const count = practice.marked.size;
+    if (!count) {
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    if (practice.mode === 'marked') {
+      text.textContent = count === 1 ? '★ Övar din markerade rad' : `★ Övar dina ${count} markerade rader`;
+      btn.textContent = 'Öva hela texten';
+    } else {
+      text.textContent = count === 1 ? '★ 1 markerad rad i den här texten' : `★ ${count} markerade rader i den här texten`;
+      btn.textContent = count === 1 ? 'Öva bara den' : 'Öva bara de markerade';
+    }
+  }
+
+  document.getElementById('practiceModeToggle').addEventListener('click', () => {
+    startPracticeRun(practice.mode === 'marked' ? 'all' : 'marked');
+  });
+
+  // ---------- Markerade rader (märken i biblioteket) ----------
+
+  async function loadMarks() {
+    try { state.marksList = await Marks.list(); } catch (_) { state.marksList = []; }
+    renderMarkBadges();
+  }
+
+  function renderMarkBadges() {
+    document.querySelectorAll('.song-row').forEach(row => {
+      const m = state.marksList.find(x => x.songId === row.dataset.id);
+      const spot = row.querySelector('.song-row-sub');
+      if (!spot) return;
+      const badge = spot.querySelector('.practice-badge');
+      const count = m ? (m.lines || []).length : 0;
+      if (count) {
+        if (!badge) {
+          const el = document.createElement('span');
+          el.className = 'practice-badge';
+          el.title = 'Rader du markerat att tänka extra på';
+          el.textContent = '★ ' + count;
+          spot.appendChild(el);
+        } else {
+          badge.textContent = '★ ' + count;
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }
 
   // ---------- Utils ----------
 
@@ -2378,10 +2547,11 @@
 
   renderMeterList();
 
-  // ---------- Init ----------
+// ---------- Init ----------
 
   loadSongs();
   loadSetlists();
   loadRhymes();
+  loadMarks();
   connectWS();
 })();

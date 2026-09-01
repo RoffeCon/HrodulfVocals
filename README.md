@@ -165,11 +165,25 @@ det här läget själva poängen med appen, inte scenvisningen. Öppna en låt o
 - Saknas ord eller är fel markeras vad som **fattas** (understruket i amber) och vad du skrev
   som **inte stämmer** (rött, genomstruket) — sedan går du vidare till nästa rad.
 - Kör fast? **Visa rad** avslöjar den utan gissning, så du kan fortsätta framåt.
-- I slutet får du en sammanfattning: hur många rader du fick rätt på första försöket. Perfekt
-  att köra samma låt några gånger i rad och se förbättringen.
+- I slutet får du en kort sammanfattning över hur många rader du gick igenom. Inga poäng
+  sparas — du märker själv vilka texter som sitter.
 
 Bara sångtexten räknas in — ackord och scenanteckningar (`>`-rader) hoppas över, eftersom det
 är orden du ska minnas, inte ackordgreppen.
+
+### Markera rader du vill tänka extra på
+
+Övningen går alltid rad för rad genom hela texten, i ordning — det är så en text lärs in.
+Vill du lägga extra krut på en enskild rad markerar du den själv med **☆ Markera raden**
+medan du står på den:
+
+- Markeringarna sparas per låt (i `data/marks.json`) och synkas live mellan dina enheter.
+- När minst en rad är markerad kan du välja **Öva bara de markerade** — i mode-baren överst
+  eller från knappen i sammanfattningen.
+- I biblioteket syns en ★-märkning med antal markerade rader per låt, och dashboard-plattan
+  "Öva utantill" visar totalen.
+- Ändrar du låttexten nollställs markeringarna, eftersom radernas placering inte längre stämmer.
+- Ingenting sker automatiskt: appen betygsätter dig inte och sparar inga resultat.
 
 ## Skriva med knappar istället för markup
 
@@ -226,13 +240,6 @@ I setlist-byggaren finns **+ Grupprubrik**, som lägger till en rubrikrad du kan
 med samma ▲▼/✕-knappar, och gör setlistan lättare att läsa för resten av bandet - särskilt
 praktiskt inför en framtida skärm i replokalen.
 
-## Vidareutveckling (roadmap, egen session)
-
-En större modul för utrustnings- och gigförberedelse är på gång: registrera vilken utrustning
-du och bandet har, räkna ut vad som krävs (t.ex. antal kablar utifrån vald utrustning), bocka av
-inför ett gig, skriva ut packlistor, och på sikt foton samt färdiga "uppsättningar" per gigtyp.
-Det är en egen datamodell och ett eget gränssnitt, så det byggs som ett separat tillägg när det
-är dags.
 
 En annan idé för framtiden: casta aktuell setlista till en skärm i replokalen (t.ex. via en
 Raspberry Pi), busshållplats-stil — "Nu spelar: Barren World (Drop D) · Nästa: Water Under My Bed"
@@ -349,6 +356,16 @@ biblioteket med mallens radstruktur färdig att fylla i - redo att öva versmåt
   direkt.
 
 Kvar: versmått-uppslagsverket (större jobb, kommer i en egen leverans).
+
+## Nytt i v1.10: manuella radmarkeringar, enklare övning
+
+- Övningen går rad för rad genom hela texten. Ingen automatik som plockar ut "svaga rader".
+- Du markerar själv de rader du vill tänka extra på (☆-knappen) och kan öva bara dem.
+- Resultatlistor, poäng och träningshistorik är borttagna — sammanfattningen säger bara hur
+  många rader du gick igenom.
+- Backup/restore omfattar ditt material (låtar, setlistor, rimlexikon) — inga övningsresultat.
+- Utrustnings-/packlistedelen är helt borttagen.
+- Putsat gränssnitt i övningsläget: tydligare mode-bar, stjärnmarkering och lugnare knappar.
 
 ## Nytt i denna omgång (Önskelista 6)
 
@@ -479,7 +496,7 @@ det också, om den är korrekt tillämpad).
 ## Nytt i denna omgång (Önskelista 3)
 
 - **Dashboard** - appen öppnas nu i en startvy med stora plattor för varje modul (Bibliotek,
-  Setlistor, Rimlexikon, och en gråmarkerad "Utrustning" för framtiden). 🏠-fliken i toppen tar
+  Setlistor, Rimlexikon, Öva utantill och Versmått). 🏠-fliken i toppen tar
   dig tillbaka dit när du vill, men du behöver aldrig gå via den för att växla - flikarna
   Bibliotek/Setlistor och ✎-knappen för rimlexikonet fungerar som förut, från vilken vy som helst.
 - **Rimlexikon som egen modul** - dashboardens ruta öppnar panelen direkt i **Hantera**-läget
@@ -494,6 +511,25 @@ det också, om den är korrekt tillämpad).
   - Displayen är helt passiv (bara visning) - all styrning sker som förut från telefonens
     scenläge. Startar du en låt inom en setlista skickas det automatiskt till displayen; går
     du tillbaka till biblioteket utan setlista-koppling återgår displayen till vänteläge.
+
+## Nytt i v1.11.0 - Displayvy i två lägen + fjärrstyrning
+
+- **Displayen (`/display.html`) har nu två lägen:**
+  - **Setlist-översikt** - hela setlistan i stor text med grupprubriker, tonart/tempo,
+    spelade låtar nedtonade och den aktuella låten markerad i bärnstensfärg. Perfekt att
+    visa före spelningen och i pauser.
+  - **Låtvy** - "Nu spelas" med position (t.ex. 2 / 14), tonart/kapo/tempo, grupprubrik
+    och **Nästa: …** under.
+- **Fjärrstyrning från telefonen:** i scenläget finns en ny kontrollgrupp **Skärm** med
+  knapparna **Setlista / Låt / Av**. Aktivt läge markeras. Allt går via `/api/live` och
+  når displayen direkt över websocket.
+- **Från setlistan:** knappen **📺 Visa setlistan på skärmen** visar hela listan på den
+  externa skärmen utan att du behöver starta scenläget.
+- **Automatik:** startar du en låt i scenläget hoppar displayen till låtvy (om du inte
+  själv valt setlist-läge - då står den kvar i listan och flyttar bara markeringen).
+  Lämnar du scenläget töms skärmen.
+- API:t `/api/live` har fått fältet `mode` (`idle` | `setlist` | `song`) och uppdaterar nu
+  bara de fält som skickas in.
 
 ## Nytt i denna omgång (Önskelista 2)
 

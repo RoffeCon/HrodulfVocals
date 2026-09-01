@@ -23,7 +23,7 @@
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
-  #stage { text-align: center; padding: 40px; width: 100%; }
+  #stage { text-align: center; padding: 40px; width: 100%; max-height: 100%; overflow: auto; }
   .label {
     font-size: clamp(16px, 2.2vw, 28px);
     text-transform: uppercase; letter-spacing: 0.12em;
@@ -49,6 +49,28 @@
   }
   #idle { color: var(--text-dim); font-size: clamp(20px, 3vw, 36px); }
   #idle img { width: 96px; height: 96px; border-radius: 20px; margin-bottom: 20px; }
+  .pos { color: var(--teal); font-size: 0.7em; letter-spacing: 0; }
+  .now-meta.small { margin-bottom: 18px; }
+  .sl-wrap { max-width: 1100px; margin: 0 auto; }
+  .sl-name { font-size: clamp(28px, 5vw, 64px); font-weight: 800; color: var(--amber); margin-bottom: 8px; }
+  .sl-list { margin-top: 22px; text-align: left; }
+  .sl-group {
+    margin: 18px 0 6px; color: var(--teal); text-transform: uppercase;
+    letter-spacing: 0.1em; font-size: clamp(13px, 1.5vw, 20px);
+  }
+  .sl-row {
+    display: flex; align-items: baseline; gap: 16px; padding: 8px 14px;
+    border-bottom: 1px solid var(--border); font-size: clamp(18px, 2.6vw, 34px);
+  }
+  .sl-row .sl-num { color: var(--text-dim); min-width: 1.8em; text-align: right; font-variant-numeric: tabular-nums; }
+  .sl-row .sl-title { flex: 1; font-weight: 600; }
+  .sl-row .sl-meta { color: var(--text-dim); font-size: 0.6em; }
+  .sl-row.past { opacity: 0.4; }
+  .sl-row.current {
+    background: rgba(232, 163, 61, 0.14); border-radius: 10px;
+    border-bottom-color: transparent; color: var(--amber);
+  }
+  .sl-row.current .sl-num, .sl-row.current .sl-meta { color: var(--amber); }
   .conn-dot {
     position: fixed; top: 16px; right: 16px; width: 10px; height: 10px;
     border-radius: 50%; background: var(--teal); opacity: 0.6;

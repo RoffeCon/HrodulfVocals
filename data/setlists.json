@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "-gF8He4-re2B",
+    "name": "Testgig",
+    "venue": "Debaser",
+    "date": "",
+    "notes": "",
+    "items": [
+      {
+        "kind": "group",
+        "label": "Akustiskt"
+      },
+      {
+        "kind": "song",
+        "songId": "ISp13Zri2Uk4"
+      },
+      {
+        "kind": "song",
+        "songId": "G2P1Nl1dO1z5"
+      }
+    ],
+    "songIds": [
+      "ISp13Zri2Uk4",
+      "G2P1Nl1dO1z5"
+    ],
+    "createdAt": "2026-09-01T04:57:33.626Z",
+    "updatedAt": "2026-09-01T04:57:33.626Z"
+  }
+]

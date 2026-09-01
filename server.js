@@ -15,6 +15,7 @@ const setlists = new JsonStore('setlists.json', DATA_DIR);
 const rhymes = new JsonStore('rhymes.json', DATA_DIR); // gammal modell, kvar bara för engångsmigrering
 const rhymeWords = new JsonStore('rhymeWords.json', DATA_DIR);
 const rhymeLinks = new JsonStore('rhymeLinks.json', DATA_DIR);
+const marks = new JsonStore('marks.json', DATA_DIR); // manuellt markerade rader per låt
 
 // Engångsmigrering: gamla rim (ordgrupper) -> enskilda ord + länkar. Körs bara om det
 // finns gammal data och den nya databasen fortfarande är tom.
@@ -235,6 +236,7 @@ app.post('/api/songs/:id/version', async (req, res) => {
 app.delete('/api/songs/:id', async (req, res) => {
   const ok = await songs.remove(req.params.id);
   if (!ok) return res.status(404).json({ error: 'Låten hittades inte' });
+  await marks.remove(req.params.id); // radmarkeringar följer med låten bort
   // Städa bort låten ur ev. setlistor också
   for (const sl of setlists.all()) {
     const items = normalizeItems(sl);
@@ -588,7 +590,8 @@ app.get('/api/search/proximity', (req, res) => {
 // ---------- Live-läge (för en andra skärm, t.ex. Raspberry Pi i replokalen) ----------
 // Ligger bara i minnet - helt flyktigt, ingen anledning att spara till disk.
 
-let liveState = { setlistId: null, songIndex: null, updatedAt: null };
+// mode: 'idle' (väntar), 'setlist' (hela listan på skärmen), 'song' (nu spelas + nästa)
+let liveState = { mode: 'idle', setlistId: null, songIndex: null, updatedAt: null };
 
 app.get('/api/live', (req, res) => {
   res.json(liveState);
@@ -596,11 +599,22 @@ app.get('/api/live', (req, res) => {
 
 app.post('/api/live', (req, res) => {
   const body = req.body || {};
-  liveState = {
-    setlistId: body.setlistId || null,
-    songIndex: (typeof body.songIndex === 'number') ? body.songIndex : null,
-    updatedAt: new Date().toISOString(),
-  };
+  const next = { ...liveState };
+
+  // Bara fält som faktiskt skickas ändras, så fjärrkontrollen kan byta läge
+  // utan att behöva känna till aktuell låt (och tvärtom).
+  if ('setlistId' in body) next.setlistId = body.setlistId || null;
+  if ('songIndex' in body) next.songIndex = (typeof body.songIndex === 'number') ? body.songIndex : null;
+  if ('mode' in body) next.mode = ['idle', 'setlist', 'song'].includes(body.mode) ? body.mode : 'idle';
+  else if ('setlistId' in body || 'songIndex' in body) {
+    // Bakåtkompatibelt: gammal klient som bara skickar låtposition.
+    next.mode = (next.setlistId && next.songIndex !== null) ? 'song' : 'idle';
+  }
+  if (!next.setlistId) next.mode = 'idle';
+  if (next.mode === 'song' && next.songIndex === null) next.mode = 'setlist';
+  next.updatedAt = new Date().toISOString();
+
+  liveState = next;
   broadcast({ type: 'live-changed', ...liveState });
   res.json(liveState);
 });
@@ -610,6 +624,51 @@ app.get('/api/info', (req, res) => {
 });
 
 // Fullständig backup av all data - för nedladdning i klienten.
+// ---------- Markerade rader (öva utantill) ----------
+//
+// Helt manuellt: du markerar själv de rader du vill tänka extra på. Inga poäng,
+// ingen historik, ingen automatik. Raderna identifieras med sitt index i
+// buildPracticeLines(). Ändras låttexten (fingerprint-mismatch) nollställs
+// markeringarna, eftersom radindexen inte längre betyder samma sak.
+
+function markEntryOut(entry) {
+  return {
+    songId: entry.id,
+    lines: Array.isArray(entry.lines) ? entry.lines : [],
+    fingerprint: entry.fingerprint || null,
+  };
+}
+
+app.get('/api/marks', (req, res) => {
+  res.json(marks.all().map(markEntryOut));
+});
+
+app.get('/api/marks/:songId', (req, res) => {
+  const entry = marks.get(req.params.songId);
+  if (!entry) return res.json({ songId: req.params.songId, lines: [], fingerprint: null });
+  res.json(markEntryOut(entry));
+});
+
+app.put('/api/marks/:songId', async (req, res) => {
+  const songId = req.params.songId;
+  const body = req.body || {};
+  const lines = Array.isArray(body.lines)
+    ? [...new Set(body.lines.map(n => parseInt(n, 10)).filter(n => Number.isInteger(n) && n >= 0))].sort((a, b) => a - b)
+    : [];
+  const fingerprint = body.fingerprint || null;
+  const now = new Date().toISOString();
+  const existing = marks.get(songId);
+  if (!lines.length) {
+    if (existing) await marks.remove(songId);
+  } else if (existing) {
+    await marks.update(songId, { lines, fingerprint, updatedAt: now });
+  } else {
+    await marks.insert({ id: songId, lines, fingerprint, createdAt: now, updatedAt: now });
+  }
+  broadcast({ type: 'marks-changed', songId });
+  res.json({ songId, lines, fingerprint });
+});
+
 app.get('/api/backup', (req, res) => {
   res.json({
     exportedAt: new Date().toISOString(),
