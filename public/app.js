@@ -857,6 +857,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
       const songIds = deriveSongIds(items);
       if (!songIds.length || Number.isNaN(songIndex)) return;
       editingSetlist.songIds = songIds;
+      state.screenMode = 'song';
       openViewer(songIds[songIndex], { setlist: editingSetlist, index: songIndex });
       return;
     }
@@ -976,6 +977,8 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
     const songIds = deriveSongIds(editingSetlist.items);
     if (!songIds.length) { toast('Lägg till minst en låt först', true); return; }
     editingSetlist.songIds = songIds;
+    // Scenläget startar: skärmen går över från hela setlistan till "nu spelas + nästa".
+    state.screenMode = 'song';
     openViewer(songIds[0], { setlist: editingSetlist, index: 0 });
   });
 
@@ -1207,7 +1210,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
     remote.hidden = !state.viewer.setlistContext;
     const mode = state.screenMode || 'song';
     remote.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('active'));
-    const map = { setlist: 'remoteShowSetlist', song: 'remoteShowSong', idle: 'remoteBlank' };
+    const map = { setlist: 'remoteShowSetlist', song: 'remoteShowSong', end: 'remoteEnd', idle: 'remoteBlank' };
     const el = document.getElementById(map[mode]);
     if (el) el.classList.add('active');
   }
@@ -1217,14 +1220,15 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
     const ctx = state.viewer.setlistContext;
     const payload = ctx
       ? { setlistId: ctx.setlist.id, songIndex: ctx.index, mode }
-      : { setlistId: null, songIndex: null, mode: 'idle' };
+      : { setlistId: null, songIndex: null, mode: mode === 'end' ? 'end' : 'idle' };
     api('/api/live', { method: 'POST', body: JSON.stringify(payload) })
-      .then(() => { renderScreenRemote(); toast(mode === 'setlist' ? 'Visar setlistan på skärmen' : mode === 'song' ? 'Visar aktuell låt på skärmen' : 'Skärmen tömd'); })
+      .then(() => { renderScreenRemote(); toast(mode === 'setlist' ? 'Visar setlistan på skärmen' : mode === 'song' ? 'Visar aktuell låt på skärmen' : mode === 'end' ? 'Skärmen visar End of Set' : 'Skärmen tömd'); })
       .catch(() => toast('Kunde inte nå skärmen', true));
   }
 
   document.getElementById('remoteShowSetlist').addEventListener('click', () => setScreenMode('setlist'));
   document.getElementById('remoteShowSong').addEventListener('click', () => setScreenMode('song'));
+  document.getElementById('remoteEnd').addEventListener('click', () => setScreenMode('end'));
   document.getElementById('remoteBlank').addEventListener('click', () => setScreenMode('idle'));
 
   async function refreshViewerSong() {
@@ -1796,30 +1800,48 @@ async function openPractice(songId, returnView) {
     input.disabled = false;
     document.getElementById('checkLineBtn').hidden = false;
     document.getElementById('revealLineBtn').hidden = false;
-    document.getElementById('nextLineBtn').hidden = true;
-    renderMarkButton();
     input.focus();
   }
 
-  function renderMarkButton() {
-    const btn = document.getElementById('markLineBtn');
-    if (!btn) return;
-    const line = practice.lines[practice.index];
-    if (!line) { btn.hidden = true; return; }
-    const on = practice.marked.has(line.realIdx);
-    btn.hidden = false;
-    btn.classList.toggle('active', on);
-    btn.textContent = on ? '★ Markerad' : '☆ Markera raden';
-    btn.title = on ? 'Ta bort markeringen' : 'Markera raden som en du behöver tänka extra på';
-  }
-
-  function appendPracticeLog(statusClass, html) {
+  // Varje rättad rad får en egen kryssruta i loggen: bocka i den direkt när du
+  // ser att raden blev fel, så hamnar den bland dina markerade rader.
+  function appendPracticeLog(statusClass, html, line) {
     const row = document.createElement('div');
     row.className = 'practice-line ' + statusClass;
-    row.innerHTML = html;
+
+    const textEl = document.createElement('div');
+    textEl.className = 'practice-line-text';
+    textEl.innerHTML = html;
+    row.appendChild(textEl);
+
+    if (line) {
+      const label = document.createElement('label');
+      label.className = 'practice-line-mark';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = practice.marked.has(line.realIdx);
+      box.title = 'Bocka i om du behöver öva mer på den här raden';
+      box.addEventListener('change', () => toggleLineMark(line.realIdx, box.checked, row));
+      label.appendChild(box);
+      label.appendChild(document.createTextNode(' Öva mer'));
+      row.appendChild(label);
+      row.classList.toggle('marked', practice.marked.has(line.realIdx));
+    }
+
     const log = document.getElementById('practiceLog');
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
+  }
+
+  async function toggleLineMark(realIdx, on, row) {
+    if (on) practice.marked.add(realIdx);
+    else practice.marked.delete(realIdx);
+    if (row) row.classList.toggle('marked', on);
+    renderPracticeModeBar();
+    try {
+      await Marks.save(practice.songId, { lines: [...practice.marked], fingerprint: practice.textHash });
+      loadMarks();
+    } catch (e) { toast(e.message, true); }
   }
 
   function renderDiffHtml(ops) {
@@ -1830,18 +1852,16 @@ async function openPractice(songId, returnView) {
     }).join(' ');
   }
 
+  // Raden rättas och nästa rad är genast redo - ingen extra knapptryckning.
   function finishPracticeLine(statusClass, html) {
     const cur = practice.lines[practice.index];
-    if (cur && practice.marked.has(cur.realIdx)) statusClass += ' marked';
-    appendPracticeLog(statusClass, html);
-    const input = document.getElementById('practiceInput');
-    input.disabled = true;
-    input.value = '';
-    document.getElementById('checkLineBtn').hidden = true;
-    document.getElementById('revealLineBtn').hidden = true;
-    document.getElementById('markLineBtn').hidden = true;
-    document.getElementById('nextLineBtn').hidden = false;
-    document.getElementById('nextLineBtn').focus();
+    appendPracticeLog(statusClass, html, cur);
+    practice.index++;
+    if (practice.index >= practice.lines.length) {
+      showPracticeSummary();
+    } else {
+      renderPracticeStep();
+    }
   }
 
 function checkCurrentLine() {
@@ -1880,14 +1900,7 @@ document.getElementById('revealLineBtn').addEventListener('click', () => {
     finishPracticeLine('revealed', `<span class="diff-match">${escapeHtml(line.text)}</span>`);
   });
 
-  document.getElementById('nextLineBtn').addEventListener('click', () => {
-    practice.index++;
-    if (practice.index >= practice.lines.length) {
-      showPracticeSummary();
-    } else {
-      renderPracticeStep();
-    }
-  });
+
 
 function showPracticeSummary() {
     document.getElementById('practiceInputArea').hidden = true;
@@ -1909,20 +1922,6 @@ function showPracticeSummary() {
 
   document.getElementById('practiceFromViewer').addEventListener('click', () => {
     if (state.viewer.songId) openPractice(state.viewer.songId, 'viewer');
-  });
-
-  // Markera/avmarkera aktuell rad - helt manuellt, sparas direkt.
-  document.getElementById('markLineBtn').addEventListener('click', async () => {
-    const line = practice.lines[practice.index];
-    if (!line) return;
-    if (practice.marked.has(line.realIdx)) practice.marked.delete(line.realIdx);
-    else practice.marked.add(line.realIdx);
-    renderMarkButton();
-    renderPracticeModeBar();
-    try {
-      await Marks.save(practice.songId, { lines: [...practice.marked], fingerprint: practice.textHash });
-      loadMarks();
-    } catch (e) { toast(e.message, true); }
   });
 
   function renderPracticeModeBar() {

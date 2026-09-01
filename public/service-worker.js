@@ -1,4 +1,4 @@
-const CACHE = 'lyricsmaster-shell-v22';
+const CACHE = 'lyricsmaster-shell-v23';
 const SHELL = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   '/icons/icon-192.png',
   '/display.html',
   '/display.js',
+  '/display-standalone.html',
   '/setlist-view.html',
   '/setlist-view.js',
 ];

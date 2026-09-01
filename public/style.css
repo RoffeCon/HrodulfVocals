@@ -813,6 +813,15 @@ input[type="search"] { flex: 1; }
 
 /* Markerad rad i loggen får en diskret stjärnkant */
 .practice-line.marked { box-shadow: inset 2px 0 0 var(--amber); }
+.practice-line { display: flex; align-items: flex-start; gap: 12px; }
+.practice-line-text { flex: 1; min-width: 0; }
+.practice-line-mark {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; color: var(--text-faint); cursor: pointer;
+  white-space: nowrap; padding-top: 2px;
+}
+.practice-line-mark input { accent-color: var(--amber); width: 18px; height: 18px; }
+.practice-line.marked .practice-line-mark { color: var(--amber); }
 
 .practice-badge {
   display: inline-block;

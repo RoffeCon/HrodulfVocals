@@ -50,6 +50,18 @@ async function migrateOldRhymes() {
 }
 
 const app = express();
+
+// Skärmvyn kan ligga sparad lokalt på en annan dator (file:// eller egen webbserver)
+// så att den fungerar även när servern inte går att nå. Då blir anropen hit
+// cross-origin - servern är ändå bara till för det egna nätverket.
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -590,7 +602,7 @@ app.get('/api/search/proximity', (req, res) => {
 // ---------- Live-läge (för en andra skärm, t.ex. Raspberry Pi i replokalen) ----------
 // Ligger bara i minnet - helt flyktigt, ingen anledning att spara till disk.
 
-// mode: 'idle' (väntar), 'setlist' (hela listan på skärmen), 'song' (nu spelas + nästa)
+// mode: 'idle' (väntar), 'setlist' (hela listan), 'song' (nu spelas + nästa), 'end' (End of Set)
 let liveState = { mode: 'idle', setlistId: null, songIndex: null, updatedAt: null };
 
 app.get('/api/live', (req, res) => {
@@ -605,12 +617,12 @@ app.post('/api/live', (req, res) => {
   // utan att behöva känna till aktuell låt (och tvärtom).
   if ('setlistId' in body) next.setlistId = body.setlistId || null;
   if ('songIndex' in body) next.songIndex = (typeof body.songIndex === 'number') ? body.songIndex : null;
-  if ('mode' in body) next.mode = ['idle', 'setlist', 'song'].includes(body.mode) ? body.mode : 'idle';
+  if ('mode' in body) next.mode = ['idle', 'setlist', 'song', 'end'].includes(body.mode) ? body.mode : 'idle';
   else if ('setlistId' in body || 'songIndex' in body) {
     // Bakåtkompatibelt: gammal klient som bara skickar låtposition.
     next.mode = (next.setlistId && next.songIndex !== null) ? 'song' : 'idle';
   }
-  if (!next.setlistId) next.mode = 'idle';
+  if (!next.setlistId && next.mode !== 'end') next.mode = 'idle';
   if (next.mode === 'song' && next.songIndex === null) next.mode = 'setlist';
   next.updatedAt = new Date().toISOString();
 

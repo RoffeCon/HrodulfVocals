@@ -1,3 +1,155 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LyricsMaster - Skärm (fristående)</title>
+<meta name="theme-color" content="#15120e">
+
+<style>
+  :root {
+    --bg: #14110d;
+    --amber: #e8a33d;
+    --teal: #59968f;
+    --text: #f3ede1;
+    --text-dim: #b7ab96;
+    --border: #382f22;
+    --red: #d1573f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  body { display: flex; align-items: center; justify-content: center; }
+  #stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; padding: 3vmin; overflow: hidden; }
+  .label {
+    font-size: clamp(14px, 2vw, 26px);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+
+  /* --- Låtvy: titeln ska fylla skärmens bredd i både porträtt och landskap --- */
+  .song-view { width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 4vmin; }
+  .fit-wrap { width: 100%; overflow: hidden; }
+  .fit {
+    display: inline-block; white-space: nowrap; line-height: 1.02;
+    font-weight: 800; transform-origin: center center;
+  }
+  .now-title { color: var(--amber); }
+  .next-block { width: 100%; }
+  .next-label {
+    font-size: clamp(13px, 1.8vw, 22px); color: var(--teal);
+    text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 1vmin;
+  }
+  .next-title { color: var(--text); font-weight: 700; }
+  .end-title { color: var(--text-dim); }
+
+  /* --- Setlistvy --- */
+  .sl-wrap { width: 100%; max-width: 1200px; max-height: 100%; overflow: auto; }
+  .sl-name { font-size: clamp(28px, 5vw, 64px); font-weight: 800; color: var(--amber); margin-bottom: 4px; }
+  .sl-sub { color: var(--text-dim); font-size: clamp(14px, 2vw, 24px); }
+  .sl-list { margin-top: 22px; text-align: left; }
+  .sl-group { margin: 18px 0 6px; color: var(--teal); text-transform: uppercase; letter-spacing: 0.1em; font-size: clamp(13px, 1.5vw, 20px); }
+  .sl-row {
+    display: flex; align-items: baseline; gap: 16px; padding: 8px 14px;
+    border-bottom: 1px solid var(--border); font-size: clamp(18px, 3vw, 40px);
+  }
+  .sl-row .sl-num { color: var(--text-dim); min-width: 1.8em; text-align: right; font-variant-numeric: tabular-nums; }
+  .sl-row .sl-title { flex: 1; font-weight: 600; }
+  .sl-row.past { opacity: 0.4; }
+  .sl-row.current { background: rgba(232, 163, 61, 0.14); border-radius: 10px; border-bottom-color: transparent; color: var(--amber); }
+  .sl-row.current .sl-num { color: var(--amber); }
+
+  #idle { color: var(--text-dim); font-size: clamp(20px, 3vw, 36px); }
+  #idle img { width: 96px; height: 96px; border-radius: 20px; margin-bottom: 20px; }
+
+  /* --- Statusrad + inställningar (fungerar även utan server) --- */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    padding: 10px 14px; font-size: 13px; color: var(--text-dim);
+    background: linear-gradient(to bottom, rgba(20,17,13,0.9), rgba(20,17,13,0));
+  }
+  .topbar .status { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--teal); }
+  .dot.offline { background: var(--red); }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 8px; padding: 4px 10px; font-size: 14px; cursor: pointer;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
+  .sheet {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(10, 8, 6, 0.92); padding: 20px;
+  }
+  .sheet[hidden] { display: none; }
+  .card {
+    width: 100%; max-width: 460px; background: #1c1811; border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; text-align: left;
+  }
+  .card h2 { margin: 0 0 6px; font-size: 22px; color: var(--amber); }
+  .card p { margin: 0 0 16px; color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+  .card label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+  .card input[type=text] {
+    width: 100%; padding: 12px 14px; font-size: 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: #14110d; color: var(--text);
+  }
+  .card .row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 120px; padding: 12px 16px; border-radius: 10px; font-size: 15px;
+    border: 1px solid var(--border); background: #14110d; color: var(--text); cursor: pointer;
+  }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: #14110d; font-weight: 700; }
+  .hint { margin-top: 14px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .msg { margin-top: 12px; font-size: 13px; min-height: 18px; }
+  .msg.err { color: var(--red); }
+  .msg.ok { color: var(--teal); }
+  .recent { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .recent button {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 20px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+  }
+  .awake { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="awake" id="awakeState"></span>
+  <span class="status"><span class="dot" id="connDot"></span><span id="connText">Ansluter…</span></span>
+  <button class="icon-btn" id="settingsBtn" type="button" title="Serverinställningar">⚙</button>
+</div>
+
+<div id="stage">
+  <div id="idle">
+    <img src="icons/icon-192.png" alt="LyricsMaster">
+    <div>Väntar på att ett set ska starta…</div>
+  </div>
+</div>
+
+<div class="sheet" id="settings" hidden>
+  <div class="card">
+    <h2>Anslut till LyricsMaster</h2>
+    <p>Skriv in adressen till telefonen/servern som kör LyricsMaster. Den här sidan fungerar även när servern inte går att nå.</p>
+    <label for="serverInput">Serveradress</label>
+    <input type="text" id="serverInput" placeholder="http://192.168.1.42:3000" autocomplete="off" spellcheck="false">
+    <div class="recent" id="recentList"></div>
+    <div class="row">
+      <button class="btn" id="closeSettings" type="button">Stäng</button>
+      <button class="btn primary" id="connectBtn" type="button">Anslut</button>
+    </div>
+    <div class="msg" id="settingsMsg"></div>
+    <div class="hint">
+      Adressen syns i LyricsMaster under ⓘ Info på telefonen. Lämna fältet tomt för att använda samma adress som sidan laddades från.
+      Skärmen håller sig vaken automatiskt så länge den visas.
+    </div>
+  </div>
+</div>
+
+<script>
 (function () {
   'use strict';
 
@@ -356,3 +508,7 @@
   render().then(() => { if (!connected && !base) openSettings(); });
   connectWS();
 })();
+
+</script>
+</body>
+</html>
