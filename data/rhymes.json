@@ -1,0 +1,94 @@
+[
+  {
+    "id": "WQLcZxWlxB7X",
+    "language": "en",
+    "type": "multisyllable",
+    "words": [
+      "Destruction",
+      "Seduction"
+    ],
+    "phrases": [],
+    "tags": [
+      "Doom Metal"
+    ],
+    "syllables": 3,
+    "favorite": false,
+    "notes": "",
+    "songUsage": [
+      {
+        "songId": "9WspPOxYMfqa"
+      }
+    ],
+    "createdAt": "2026-07-18T22:12:59.617Z",
+    "updatedAt": "2026-07-18T22:21:03.858Z"
+  },
+  {
+    "id": "_i0398QXtZax",
+    "language": "en",
+    "type": "simple",
+    "words": [
+      "Head",
+      "Fed"
+    ],
+    "phrases": [],
+    "tags": [
+      "Doom Metal"
+    ],
+    "syllables": 1,
+    "favorite": false,
+    "notes": "",
+    "songUsage": [
+      {
+        "songId": "9WspPOxYMfqa"
+      }
+    ],
+    "createdAt": "2026-07-18T22:14:33.828Z",
+    "updatedAt": "2026-07-18T22:21:03.861Z"
+  },
+  {
+    "id": "hfOinS2Aq93A",
+    "language": "en",
+    "type": "simple",
+    "words": [
+      "Obsession",
+      "Confession"
+    ],
+    "phrases": [],
+    "tags": [
+      "Doom Metal"
+    ],
+    "syllables": 3,
+    "favorite": false,
+    "notes": "",
+    "songUsage": [
+      {
+        "songId": "9WspPOxYMfqa"
+      }
+    ],
+    "createdAt": "2026-07-18T22:16:44.401Z",
+    "updatedAt": "2026-07-18T22:21:03.863Z"
+  },
+  {
+    "id": "IzYv_ajmSJA0",
+    "language": "en",
+    "type": "simple",
+    "words": [
+      "Time",
+      "Crime"
+    ],
+    "phrases": [],
+    "tags": [
+      "Doom Metal"
+    ],
+    "syllables": 1,
+    "favorite": false,
+    "notes": "",
+    "songUsage": [
+      {
+        "songId": "9WspPOxYMfqa"
+      }
+    ],
+    "createdAt": "2026-07-18T22:18:45.318Z",
+    "updatedAt": "2026-07-18T22:20:11.532Z"
+  }
+]

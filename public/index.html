@@ -64,17 +64,12 @@
       <button class="dashboard-tile" id="dashboardPracticeTile" type="button">
         <span class="tile-icon">🎤</span>
         <span class="tile-title">Öva utantill</span>
-        <span class="tile-sub">Välj en låt, öva direkt</span>
+        <span class="tile-sub">Rad för rad, i din egen takt</span>
       </button>
       <button class="dashboard-tile" data-view="meters" type="button">
         <span class="tile-icon">📐</span>
         <span class="tile-title">Versmått</span>
         <span class="tile-sub">27 poesiformer, med mallar att öva på</span>
-      </button>
-      <button class="dashboard-tile disabled" type="button" disabled>
-        <span class="tile-icon">🎒</span>
-        <span class="tile-title">Utrustning</span>
-        <span class="tile-sub">Blir en separat app - inte här</span>
       </button>
     </div>
   </section>
@@ -263,6 +258,12 @@ Det var en [C]gång i [G]tiden
         <button class="btn btn-icon" id="scrollSpeedUp" type="button">+</button>
         <button class="btn btn-icon" id="scrollSettingsBtn" type="button" title="Inställningar för låtens slut">⚙</button>
       </div>
+      <div class="control-group screen-remote" id="screenRemote" hidden>
+        <span class="control-label">Skärm</span>
+        <button class="btn btn-toggle" id="remoteShowSetlist" type="button">Setlista</button>
+        <button class="btn btn-toggle" id="remoteShowSong" type="button">Låt</button>
+        <button class="btn btn-toggle" id="remoteBlank" type="button">Av</button>
+      </div>
       <div class="control-group setlist-nav" id="setlistNav" hidden>
         <button class="btn btn-icon" id="prevSongBtn">‹ Föreg.</button>
         <span id="setlistPos"></span>
@@ -308,7 +309,12 @@ Det var en [C]gång i [G]tiden
         <div id="practiceTitle" class="viewer-title"></div>
         <div id="practiceProgress" class="viewer-meta"></div>
       </div>
-      <button class="btn btn-ghost" id="restartPractice">Börja om</button>
+<button class="btn btn-ghost" id="restartPractice">Börja om</button>
+    </div>
+
+    <div id="practiceModeBar" class="practice-mode-bar" hidden>
+      <span id="practiceModeText"></span>
+      <button type="button" class="btn btn-tiny btn-ghost" id="practiceModeToggle"></button>
     </div>
 
     <div id="practiceLog" class="practice-log"></div>
@@ -317,6 +323,7 @@ Det var en [C]gång i [G]tiden
       <input type="text" id="practiceInput" enterkeyhint="done" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Skriv raden du minns, eller påbörja den…">
       <div class="practice-btn-row">
         <label class="enter-toggle"><input type="checkbox" id="enterToggle" checked> Rätta med Enter</label>
+        <button type="button" class="btn btn-ghost btn-mark" id="markLineBtn">☆ Markera raden</button>
         <button type="button" class="btn btn-ghost" id="revealLineBtn">Visa rad</button>
         <button type="submit" class="btn btn-accent" id="checkLineBtn">Rätta</button>
         <button type="button" class="btn btn-accent" id="nextLineBtn" hidden>Nästa rad ›</button>
@@ -324,10 +331,11 @@ Det var en [C]gång i [G]tiden
     </form>
 
     <div id="practiceSummary" class="practice-summary" hidden>
-      <h3>Bra jobbat!</h3>
+      <h3>Genomgången klar</h3>
       <p id="practiceScoreText"></p>
       <div class="practice-btn-row" style="justify-content:center">
         <button class="btn btn-ghost" id="practiceSummaryBack">Tillbaka</button>
+        <button class="btn btn-ghost" id="practiceMarkedBtn" hidden>★ Öva markerade</button>
         <button class="btn btn-accent" id="practiceAgainBtn">Öva igen</button>
       </div>
     </div>
@@ -382,7 +390,10 @@ Det var en [C]gång i [G]tiden
       </div>
     </div>
 
-    <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>
+    <div class="setlist-start-row">
+      <button class="btn btn-accent btn-wide" id="startPerformance">▶ Starta scenläge från topp</button>
+      <button class="btn btn-wide" id="showSetlistOnScreen" type="button">📺 Visa setlistan på skärmen</button>
+    </div>
   </section>
 
 </div>
