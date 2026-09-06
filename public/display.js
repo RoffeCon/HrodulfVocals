@@ -105,12 +105,33 @@
   // Vyer
   // ---------------------------------------------------------------------------
 
+  // Skärmsläckare: när inget set visas ska inte förra setet ligga kvar och brännas
+  // fast på skärmen. Innehållet driver sakta runt istället.
   function idleHtml(text) {
     return `
-      <div id="idle">
-        <img src="${base ? base + '/icons/icon-192.png' : 'icons/icon-192.png'}" alt="LyricsMaster" onerror="this.style.display='none'">
-        <div>${escapeHtml(text || 'Väntar på att ett set ska starta…')}</div>
+      <div id="saver">
+        <div class="saver-inner">
+          <img src="${base ? base + '/icons/icon-192.png' : 'icons/icon-192.png'}" alt="LyricsMaster" onerror="this.style.display='none'">
+          <div class="saver-clock" id="saverClock"></div>
+          <div class="saver-text">${escapeHtml(text || 'Inget set visas just nu')}</div>
+        </div>
       </div>`;
+  }
+
+  let clockTimer = null;
+  function startClock() {
+    stopClock();
+    const tick = () => {
+      const el = document.getElementById('saverClock');
+      if (!el) return stopClock();
+      const d = new Date();
+      el.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    };
+    tick();
+    clockTimer = setInterval(tick, 15000);
+  }
+  function stopClock() {
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
   }
 
   function offlineHtml() {
@@ -122,13 +143,31 @@
       </div>`;
   }
 
-  // Plockar ut setlistans låtar i ordning, med ev. senaste grupprubrik per låt.
+  function fmtDur(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  function isShownBreak(item) {
+    return item && item.kind === 'break' && item.showOnDisplay !== false;
+  }
+
+  // Plockar ut setlistans låtar i ordning, med ev. senaste grupprubrik per låt och
+  // en eventuell paus (som ska visas) direkt efter låten.
   function flatten(setlist) {
+    const items = setlist.items || [];
     const out = [];
     let group = '';
-    for (const item of (setlist.items || [])) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       if (item.kind === 'group') { group = item.label; continue; }
-      out.push({ songId: item.songId, group });
+      if (item.kind === 'break') continue;
+      let breakAfter = null;
+      for (let j = i + 1; j < items.length; j++) {
+        if (items[j].kind === 'group') continue;
+        if (items[j].kind === 'break') { if (isShownBreak(items[j])) breakAfter = items[j]; break; }
+        break;
+      }
+      out.push({ songId: item.songId, group, breakAfter });
     }
     return out;
   }
@@ -152,6 +191,14 @@
           <span class="sl-num">${i + 1}</span>
           <span class="sl-title">${escapeHtml(song ? song.title : 'Okänd låt')}</span>
         </div>`);
+      if (entry.breakAfter) {
+        rows.push(`
+          <div class="sl-row sl-break${isPast ? ' past' : ''}">
+            <span class="sl-num">⏸</span>
+            <span class="sl-title">${escapeHtml(entry.breakAfter.label || 'Paus')}</span>
+            <span class="sl-time">${escapeHtml(fmtDur(entry.breakAfter.seconds))}</span>
+          </div>`);
+      }
     }
 
     const header = [setlist.venue, setlist.date].filter(Boolean).join(' · ');
@@ -188,9 +235,15 @@
       try { next = await getSong(songs[idx + 1].songId); } catch (_) {}
     }
 
-    const nextHtml = songs[idx + 1]
-      ? `<div class="next-label">Next</div><div class="fit-wrap"><span class="fit next-title">${escapeHtml(next ? next.title : 'Okänd låt')}</span></div>`
-      : `<div class="next-label">Next</div><div class="fit-wrap"><span class="fit next-title" style="color:var(--text-dim)">End of Set</span></div>`;
+    const brk = songs[idx].breakAfter;
+    const nextTitle = songs[idx + 1]
+      ? escapeHtml(next ? next.title : 'Okänd låt')
+      : '<span style="color:var(--text-dim)">End of Set</span>';
+    const nextHtml = brk
+      ? `<div class="next-label">Next</div>
+         <div class="fit-wrap"><span class="fit next-title break-next">⏸ ${escapeHtml(brk.label || 'Paus')} · ${escapeHtml(fmtDur(brk.seconds))}</span></div>
+         <div class="then-line">Sedan: ${nextTitle}</div>`
+      : `<div class="next-label">Next</div><div class="fit-wrap"><span class="fit next-title">${nextTitle}</span></div>`;
 
     stage.innerHTML = `
       <div class="song-view">
@@ -211,16 +264,18 @@
       setConnected(true);
     } catch (_) {
       setConnected(false);
+      stopClock();
       stage.innerHTML = offlineHtml();
       return;
     }
     if (token !== renderToken) return;
 
+    stopClock();
     if (live.mode === 'end') { stage.innerHTML = endOfSetHtml(); fitAll(); return; }
-    if (!live.setlistId || live.mode === 'idle') { stage.innerHTML = idleHtml(); return; }
+    if (!live.setlistId || live.mode === 'idle') { stage.innerHTML = idleHtml(); startClock(); return; }
 
     let setlist;
-    try { setlist = await api('/api/setlists/' + live.setlistId); } catch (_) { stage.innerHTML = idleHtml(); return; }
+    try { setlist = await api('/api/setlists/' + live.setlistId); } catch (_) { stage.innerHTML = idleHtml(); startClock(); return; }
     if (token !== renderToken) return;
 
     if (live.mode === 'song') await renderSongView(stage, setlist, live);

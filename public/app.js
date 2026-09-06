@@ -350,7 +350,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
   // ---------- Song editor ----------
 
   function blankSong() {
-    return { title: '', composer: '', artist: '', key: '', capo: '', tempo: '', timeSignature: '', tags: [], notes: '', text: '' };
+    return { title: '', composer: '', artist: '', key: '', capo: '', tempo: '', duration: '', timeSignature: '', tags: [], notes: '', text: '' };
   }
 
   function siblingsOf(song) {
@@ -383,6 +383,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
     document.getElementById('f-key').value = song.key || '';
     document.getElementById('f-capo').value = song.capo || '';
     document.getElementById('f-tempo').value = song.tempo || '';
+    document.getElementById('f-duration').value = song.duration || '';
     document.getElementById('f-time').value = song.timeSignature || '';
     document.getElementById('f-version').value = song.versionLabel || '';
     document.getElementById('f-tags').value = (song.tags || []).join(', ');
@@ -474,6 +475,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
       key: document.getElementById('f-key').value.trim(),
       capo: document.getElementById('f-capo').value.trim(),
       tempo: document.getElementById('f-tempo').value.trim(),
+      duration: document.getElementById('f-duration').value.trim(),
       timeSignature: document.getElementById('f-time').value.trim(),
       versionLabel: document.getElementById('f-version').value.trim() || 'V1',
       tags: document.getElementById('f-tags').value.split(',').map(t => t.trim()).filter(Boolean),
@@ -655,6 +657,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
       key: document.getElementById('f-key').value.trim(),
       capo: document.getElementById('f-capo').value.trim(),
       tempo: document.getElementById('f-tempo').value.trim(),
+      duration: document.getElementById('f-duration').value.trim(),
       timeSignature: document.getElementById('f-time').value.trim(),
       text: document.getElementById('f-text').value,
     };
@@ -687,6 +690,12 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
     } catch (e) { toast(e.message, true); }
   }
 
+  function setlistLengthLabel(sl) {
+    const songsById = Object.fromEntries(state.songs.map(x => [x.id, x]));
+    const { seconds } = setlistTotals(sl.items || [], songsById);
+    return seconds ? formatLong(seconds) : '';
+  }
+
   function renderSetlists() {
     const q = document.getElementById('setlistSearch').value.trim().toLowerCase();
     const list = document.getElementById('setlistList');
@@ -696,7 +705,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
       <li class="song-row" data-id="${s.id}">
         <div class="song-row-main" data-action="open">
           <div class="song-row-title">${escapeHtml(s.name)}</div>
-          <div class="song-row-sub">${[s.venue, s.date, s.songIds.length + ' låtar'].filter(Boolean).map(escapeHtml).join(' · ')}</div>
+          <div class="song-row-sub">${[s.venue, s.date, s.songIds.length + ' låtar', setlistLengthLabel(s)].filter(Boolean).map(escapeHtml).join(' · ')}</div>
         </div>
       </li>
     `).join('');
@@ -711,6 +720,43 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
   document.getElementById('newSetlistBtn').addEventListener('click', () => openSetlistEditor(null));
 
   let editingSetlist = null;
+
+  // ---- Låtlängder och settotal ----
+  // Längd skrivs som mm:ss (eller bara minuter). Allt räknas internt i sekunder.
+  function parseDuration(raw) {
+    const str = String(raw == null ? '' : raw).trim();
+    if (!str) return 0;
+    const m = str.match(/^(\d+):([0-5]?\d)$/);
+    if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    const mins = parseFloat(str.replace(',', '.'));
+    return isNaN(mins) ? 0 : Math.round(mins * 60);
+  }
+  function formatDuration(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ':' + String(r).padStart(2, '0');
+  }
+  function formatLong(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    const h = Math.floor(s / 3600);
+    const m = Math.round((s % 3600) / 60);
+    return h ? `${h} tim ${m} min` : `${m} min`;
+  }
+  // Summerar låtlängder + pauser. missing = antal låtar utan angiven längd.
+  function setlistTotals(items, songsById) {
+    let seconds = 0, missing = 0;
+    for (const it of (items || [])) {
+      if (it.kind === 'song') {
+        const song = songsById[it.songId];
+        const d = parseDuration(song && song.duration);
+        if (d) seconds += d; else missing++;
+      } else if (it.kind === 'break') {
+        seconds += Math.max(0, parseInt(it.seconds, 10) || 0);
+      }
+    }
+    return { seconds, missing };
+  }
 
   function deriveSongIds(items) {
     return items.filter(i => i.kind === 'song').map(i => i.songId);
@@ -759,6 +805,23 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
             </span>
           </li>`;
       }
+      if (item.kind === 'break') {
+        return `
+          <li class="reorder-row break-row" data-idx="${i}">
+            <span class="drag-handle" data-idx="${i}">⠿</span>
+            <span class="reorder-index">⏸</span>
+            <input class="reorder-title break-label-input" data-idx="${i}" type="text" value="${escapeHtml(item.label || 'Paus')}" placeholder="t.ex. Mellansnack">
+            <input class="break-time-input" data-idx="${i}" type="text" value="${escapeHtml(formatDuration(item.seconds || 0))}" placeholder="mm:ss" title="Pausens längd">
+            <label class="break-show-label" title="Visa pausen på den externa skärmen">
+              <input type="checkbox" class="break-show-input" data-idx="${i}" ${item.showOnDisplay !== false ? 'checked' : ''}> Skärm
+            </label>
+            <span class="reorder-btns">
+              <button class="btn btn-tiny" data-act="up" data-idx="${i}" ${upDisabled}>▲</button>
+              <button class="btn btn-tiny" data-act="down" data-idx="${i}" ${downDisabled}>▼</button>
+              <button class="btn btn-tiny btn-danger" data-act="remove" data-idx="${i}">✕</button>
+            </span>
+          </li>`;
+      }
       const s = songsById[item.songId];
       if (!s) return '';
       songNumber++;
@@ -767,7 +830,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
           <span class="drag-handle" data-idx="${i}">⠿</span>
           <span class="reorder-index">${songNumber}</span>
           <span class="reorder-title" data-act="start" data-idx="${i}" data-song-index="${songNumber - 1}" style="cursor:pointer;">${escapeHtml(s.title)}</span>
-          <span class="reorder-meta">${escapeHtml(s.key || '')}</span>
+          <span class="reorder-meta">${escapeHtml([s.key, s.duration && formatDuration(parseDuration(s.duration))].filter(Boolean).join(' · '))}</span>
           <span class="reorder-btns">
             <button class="btn btn-tiny" data-act="up" data-idx="${i}" ${upDisabled}>▲</button>
             <button class="btn btn-tiny" data-act="down" data-idx="${i}" ${downDisabled}>▼</button>
@@ -790,6 +853,13 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
         <button class="btn btn-tiny btn-accent" data-action="add">+ Lägg till</button>
       </li>
     `).join('');
+    const totalEl = document.getElementById('setlistTotalTime');
+    if (totalEl) {
+      const { seconds, missing } = setlistTotals(items, songsById);
+      totalEl.textContent = seconds || missing
+        ? `${formatLong(seconds)}${missing ? ` (+ ${missing} låt${missing === 1 ? '' : 'ar'} utan längd)` : ''}`
+        : '';
+    }
     renderEnergyCurve();
   }
 
@@ -839,6 +909,11 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
     renderSetlistBuilder();
   });
 
+  document.getElementById('addBreakBtn').addEventListener('click', () => {
+    editingSetlist.items.push({ kind: 'break', label: 'Paus', seconds: 300, showOnDisplay: true });
+    renderSetlistBuilder();
+  });
+
   document.getElementById('addGroupHeaderBtn').addEventListener('click', () => {
     editingSetlist.items.push({ kind: 'group', label: 'Ny grupp' });
     renderSetlistBuilder();
@@ -874,9 +949,19 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
   });
 
   document.getElementById('setlistSongs').addEventListener('change', (e) => {
-    if (!e.target.classList.contains('group-label-input')) return;
     const idx = parseInt(e.target.dataset.idx, 10);
-    if (editingSetlist.items[idx]) editingSetlist.items[idx].label = e.target.value.trim() || 'Grupp';
+    const item = editingSetlist.items[idx];
+    if (!item) return;
+    if (e.target.classList.contains('group-label-input')) {
+      item.label = e.target.value.trim() || 'Grupp';
+    } else if (e.target.classList.contains('break-label-input')) {
+      item.label = e.target.value.trim() || 'Paus';
+    } else if (e.target.classList.contains('break-time-input')) {
+      item.seconds = parseDuration(e.target.value);
+      renderSetlistBuilder();
+    } else if (e.target.classList.contains('break-show-input')) {
+      item.showOnDisplay = e.target.checked;
+    }
   });
 
   // Dra-och-släpp-omordning via pekhändelser (funkar med både mus och touch,
@@ -1066,12 +1151,15 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
         if (item.kind === 'group') {
           if (listOpen) { html += '</ol>'; listOpen = false; }
           html += `<div class="group">${escapeHtml(item.label)}</div>`;
+        } else if (item.kind === 'break') {
+          if (listOpen) { html += '</ol>'; listOpen = false; }
+          html += `<div class="group">⏸ ${escapeHtml(item.label || 'Paus')} - ${escapeHtml(formatDuration(item.seconds || 0))}</div>`;
         } else {
           const s = fullSongs[item.songId];
           if (!s) continue;
           n++;
           if (!listOpen) { html += '<ol>'; listOpen = true; }
-          const metaBits = [s.key, s.tempo && (s.tempo + ' bpm')].filter(Boolean);
+          const metaBits = [s.key, s.tempo && (s.tempo + ' bpm'), s.duration && formatDuration(parseDuration(s.duration))].filter(Boolean);
           html += `<li><strong>${escapeHtml(s.title)}</strong>${metaBits.length ? ' - ' + escapeHtml(metaBits.join(' · ')) : ''}</li>`;
         }
       }
@@ -1106,7 +1194,7 @@ try { await Songs.remove(id); toast('Låten raderad'); await loadSongs(); await 
 
   const EDITOR_FIELDS = {
     composer: 'Kompositör', artist: 'Artist', key: 'Tonart', capo: 'Kapo',
-    tempo: 'Tempo', time: 'Taktart', version: 'Version', tags: 'Taggar', notes: 'Anteckningar',
+    tempo: 'Tempo', duration: 'Längd', time: 'Taktart', version: 'Version', tags: 'Taggar', notes: 'Anteckningar',
   };
 
   function getHiddenFields() {

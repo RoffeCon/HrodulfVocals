@@ -191,6 +191,7 @@ Text till nästa låt här..."></textarea>
             <button class="btn btn-tiny" id="tapTempoBtn" type="button">👆 Tap</button>
           </div>
         </label>
+        <label data-field="duration">Längd (mm:ss)<input id="f-duration" type="text" placeholder="t.ex. 3:45" inputmode="numeric"></label>
         <label data-field="time">Taktart<input id="f-time" type="text" placeholder="t.ex. 4/4"></label>
         <label data-field="version">Version<input id="f-version" type="text" placeholder="t.ex. V1, Akustisk, Live"></label>
         <label class="field-wide" data-field="tags">Taggar (komma-separerat)<input id="f-tags" type="text" placeholder="rock, egen, soundcheck"></label>
@@ -368,8 +369,11 @@ Det var en [C]gång i [G]tiden
     <div class="setlist-builder">
       <div class="setlist-builder-col">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;">Låtar i setlistan</h3>
-          <button class="btn btn-tiny" id="addGroupHeaderBtn" type="button">+ Grupprubrik</button>
+          <h3 style="margin:0;">Låtar i setlistan <span id="setlistTotalTime" class="set-total"></span></h3>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-tiny" id="addBreakBtn" type="button">+ Paus</button>
+            <button class="btn btn-tiny" id="addGroupHeaderBtn" type="button">+ Grupprubrik</button>
+          </div>
         </div>
         <ul id="setlistSongs" class="reorder-list"></ul>
         <p id="setlistEmptyMsg" class="empty-state small">Inga låtar tillagda än.</p>

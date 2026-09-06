@@ -63,6 +63,32 @@
   .sl-row.current { background: rgba(232, 163, 61, 0.14); border-radius: 10px; border-bottom-color: transparent; color: var(--amber); }
   .sl-row.current .sl-num { color: var(--amber); }
 
+
+  .sl-row.sl-break { color: var(--teal); font-style: italic; }
+  .sl-row.sl-break .sl-num { color: var(--teal); }
+  .sl-row .sl-time { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .next-title.break-next { color: var(--teal); }
+  .then-line { margin-top: 1.5vmin; color: var(--text-dim); font-size: clamp(14px, 2.2vw, 30px); }
+
+  /* --- Skärmsläckare när inget set visas --- */
+  #saver { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .saver-inner {
+    color: var(--text-dim); text-align: center;
+    animation: drift 92s ease-in-out infinite alternate, fadepulse 12s ease-in-out infinite alternate;
+  }
+  .saver-inner img { width: 84px; height: 84px; border-radius: 18px; opacity: 0.7; }
+  .saver-clock { font-size: clamp(38px, 8vw, 110px); font-weight: 800; color: var(--amber); opacity: 0.75; line-height: 1.1; margin-top: 10px; }
+  .saver-text { font-size: clamp(14px, 2vw, 24px); margin-top: 6px; }
+  @keyframes drift {
+    0%   { transform: translate(-26vw, -22vh); }
+    25%  { transform: translate(24vw, -10vh); }
+    50%  { transform: translate(18vw, 24vh); }
+    75%  { transform: translate(-20vw, 16vh); }
+    100% { transform: translate(-8vw, -18vh); }
+  }
+  @keyframes fadepulse { from { opacity: 0.55; } to { opacity: 0.95; } }
+  @media (prefers-reduced-motion: reduce) { .saver-inner { animation: none; } }
+
   #idle { color: var(--text-dim); font-size: clamp(20px, 3vw, 36px); }
   #idle img { width: 96px; height: 96px; border-radius: 20px; margin-bottom: 20px; }
 
@@ -124,9 +150,12 @@
 </div>
 
 <div id="stage">
-  <div id="idle">
-    <img src="icons/icon-192.png" alt="LyricsMaster">
-    <div>Väntar på att ett set ska starta…</div>
+  <div id="saver">
+    <div class="saver-inner">
+      <img src="icons/icon-192.png" alt="LyricsMaster">
+      <div class="saver-clock" id="saverClock"></div>
+      <div class="saver-text">Inget set visas just nu</div>
+    </div>
   </div>
 </div>
 

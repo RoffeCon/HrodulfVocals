@@ -582,3 +582,9 @@ avbruten skrivning ska aldrig kunna förstöra din data.
   framtida bruk om du vill bygga serversidesfunktioner (t.ex. export till PDF i annan tonart).
 
 Fri kod, inget App Store-beroende, ingen prenumeration. Din stämma, din server.
+
+## Nytt i 1.13.0
+- **Låtlängd**: fältet `Längd (mm:ss)` i låteditorn.
+- **Total speltid**: setlistan summerar låtar + pauser, och visar hur många låtar som saknar längd.
+- **Pauser i setet**: `+ Paus` lägger till mellansnack/rast med egen längd. Kryssrutan **Skärm** styr om pausen syns på den externa displayen.
+- **Skärmsläckare**: när inget set visas driver logga + klocka runt på /display.html i stället för att lämna kvar förra setet.

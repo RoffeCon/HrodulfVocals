@@ -83,8 +83,8 @@ wss.on('connection', (ws) => {
 
 app.get('/api/songs', (req, res) => {
   const list = songs.all()
-    .map(({ id, title, composer, artist, key, tempo, capo, tags, notes, updatedAt, groupId, versionLabel }) =>
-      ({ id, title, composer, artist, key, tempo, capo, tags, notes, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
+    .map(({ id, title, composer, artist, key, tempo, capo, duration, tags, notes, updatedAt, groupId, versionLabel }) =>
+      ({ id, title, composer, artist, key, tempo, capo, duration: duration || '', tags, notes, updatedAt, groupId: groupId || id, versionLabel: versionLabel || 'V1' }))
     .sort((a, b) => a.title.localeCompare(b.title, 'sv'));
   res.json(list);
 });
@@ -110,6 +110,7 @@ app.post('/api/songs', async (req, res) => {
     key: body.key || '',
     capo: body.capo || '',
     tempo: body.tempo || '',
+    duration: body.duration || '',
     timeSignature: body.timeSignature || '',
     tags: Array.isArray(body.tags) ? body.tags : [],
     notes: body.notes || '',
@@ -144,6 +145,7 @@ app.post('/api/songs/import', async (req, res) => {
       key: raw.key || '',
       capo: raw.capo || '',
       tempo: raw.tempo || '',
+      duration: raw.duration || '',
       timeSignature: raw.timeSignature || '',
       tags: [],
       notes: raw.notes || '',
@@ -174,6 +176,7 @@ app.put('/api/songs/:id', async (req, res) => {
     ...('key' in body ? { key: body.key } : {}),
     ...('capo' in body ? { capo: body.capo } : {}),
     ...('tempo' in body ? { tempo: body.tempo } : {}),
+    ...('duration' in body ? { duration: body.duration } : {}),
     ...('timeSignature' in body ? { timeSignature: body.timeSignature } : {}),
     ...('tags' in body ? { tags: Array.isArray(body.tags) ? body.tags : [] } : {}),
     ...('notes' in body ? { notes: body.notes } : {}),
@@ -231,6 +234,7 @@ app.post('/api/songs/:id/version', async (req, res) => {
     key: src.key,
     capo: src.capo,
     tempo: src.tempo,
+    duration: src.duration || '',
     timeSignature: src.timeSignature,
     tags: src.tags,
     notes: src.notes,
@@ -280,6 +284,14 @@ function sanitizeItems(rawItems) {
   if (!Array.isArray(rawItems)) return [];
   return rawItems.map(it => {
     if (it && it.kind === 'group') return { kind: 'group', label: String(it.label || '').trim() };
+    // Paus i setet (mellansnack, byte av stämning, kortare rast). seconds = längd,
+    // showOnDisplay avgör om pausen syns på den externa skärmen.
+    if (it && it.kind === 'break') return {
+      kind: 'break',
+      label: String(it.label || '').trim() || 'Paus',
+      seconds: Math.max(0, parseInt(it.seconds, 10) || 0),
+      showOnDisplay: it.showOnDisplay !== false,
+    };
     if (it && it.kind === 'song' && it.songId) return { kind: 'song', songId: it.songId };
     return null;
   }).filter(Boolean);

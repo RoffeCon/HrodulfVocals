@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LyricsMaster - Skärm (fristående)</title>
+<title>Standalone · LyricsMaster - Skärm</title>
 <meta name="theme-color" content="#15120e">
-
+<link rel="icon" href="icons/icon-192.png">
 <style>
   :root {
     --bg: #14110d;
@@ -62,6 +62,32 @@
   .sl-row.past { opacity: 0.4; }
   .sl-row.current { background: rgba(232, 163, 61, 0.14); border-radius: 10px; border-bottom-color: transparent; color: var(--amber); }
   .sl-row.current .sl-num { color: var(--amber); }
+
+
+  .sl-row.sl-break { color: var(--teal); font-style: italic; }
+  .sl-row.sl-break .sl-num { color: var(--teal); }
+  .sl-row .sl-time { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .next-title.break-next { color: var(--teal); }
+  .then-line { margin-top: 1.5vmin; color: var(--text-dim); font-size: clamp(14px, 2.2vw, 30px); }
+
+  /* --- Skärmsläckare när inget set visas --- */
+  #saver { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .saver-inner {
+    color: var(--text-dim); text-align: center;
+    animation: drift 92s ease-in-out infinite alternate, fadepulse 12s ease-in-out infinite alternate;
+  }
+  .saver-inner img { width: 84px; height: 84px; border-radius: 18px; opacity: 0.7; }
+  .saver-clock { font-size: clamp(38px, 8vw, 110px); font-weight: 800; color: var(--amber); opacity: 0.75; line-height: 1.1; margin-top: 10px; }
+  .saver-text { font-size: clamp(14px, 2vw, 24px); margin-top: 6px; }
+  @keyframes drift {
+    0%   { transform: translate(-26vw, -22vh); }
+    25%  { transform: translate(24vw, -10vh); }
+    50%  { transform: translate(18vw, 24vh); }
+    75%  { transform: translate(-20vw, 16vh); }
+    100% { transform: translate(-8vw, -18vh); }
+  }
+  @keyframes fadepulse { from { opacity: 0.55; } to { opacity: 0.95; } }
+  @media (prefers-reduced-motion: reduce) { .saver-inner { animation: none; } }
 
   #idle { color: var(--text-dim); font-size: clamp(20px, 3vw, 36px); }
   #idle img { width: 96px; height: 96px; border-radius: 20px; margin-bottom: 20px; }
@@ -124,9 +150,12 @@
 </div>
 
 <div id="stage">
-  <div id="idle">
-    <img src="icons/icon-192.png" alt="LyricsMaster">
-    <div>Väntar på att ett set ska starta…</div>
+  <div id="saver">
+    <div class="saver-inner">
+      <img src="icons/icon-192.png" alt="LyricsMaster">
+      <div class="saver-clock" id="saverClock"></div>
+      <div class="saver-text">Inget set visas just nu</div>
+    </div>
   </div>
 </div>
 
@@ -257,12 +286,33 @@
   // Vyer
   // ---------------------------------------------------------------------------
 
+  // Skärmsläckare: när inget set visas ska inte förra setet ligga kvar och brännas
+  // fast på skärmen. Innehållet driver sakta runt istället.
   function idleHtml(text) {
     return `
-      <div id="idle">
-        <img src="${base ? base + '/icons/icon-192.png' : 'icons/icon-192.png'}" alt="LyricsMaster" onerror="this.style.display='none'">
-        <div>${escapeHtml(text || 'Väntar på att ett set ska starta…')}</div>
+      <div id="saver">
+        <div class="saver-inner">
+          <img src="${base ? base + '/icons/icon-192.png' : 'icons/icon-192.png'}" alt="LyricsMaster" onerror="this.style.display='none'">
+          <div class="saver-clock" id="saverClock"></div>
+          <div class="saver-text">${escapeHtml(text || 'Inget set visas just nu')}</div>
+        </div>
       </div>`;
+  }
+
+  let clockTimer = null;
+  function startClock() {
+    stopClock();
+    const tick = () => {
+      const el = document.getElementById('saverClock');
+      if (!el) return stopClock();
+      const d = new Date();
+      el.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    };
+    tick();
+    clockTimer = setInterval(tick, 15000);
+  }
+  function stopClock() {
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
   }
 
   function offlineHtml() {
@@ -274,13 +324,31 @@
       </div>`;
   }
 
-  // Plockar ut setlistans låtar i ordning, med ev. senaste grupprubrik per låt.
+  function fmtDur(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  function isShownBreak(item) {
+    return item && item.kind === 'break' && item.showOnDisplay !== false;
+  }
+
+  // Plockar ut setlistans låtar i ordning, med ev. senaste grupprubrik per låt och
+  // en eventuell paus (som ska visas) direkt efter låten.
   function flatten(setlist) {
+    const items = setlist.items || [];
     const out = [];
     let group = '';
-    for (const item of (setlist.items || [])) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       if (item.kind === 'group') { group = item.label; continue; }
-      out.push({ songId: item.songId, group });
+      if (item.kind === 'break') continue;
+      let breakAfter = null;
+      for (let j = i + 1; j < items.length; j++) {
+        if (items[j].kind === 'group') continue;
+        if (items[j].kind === 'break') { if (isShownBreak(items[j])) breakAfter = items[j]; break; }
+        break;
+      }
+      out.push({ songId: item.songId, group, breakAfter });
     }
     return out;
   }
@@ -304,6 +372,14 @@
           <span class="sl-num">${i + 1}</span>
           <span class="sl-title">${escapeHtml(song ? song.title : 'Okänd låt')}</span>
         </div>`);
+      if (entry.breakAfter) {
+        rows.push(`
+          <div class="sl-row sl-break${isPast ? ' past' : ''}">
+            <span class="sl-num">⏸</span>
+            <span class="sl-title">${escapeHtml(entry.breakAfter.label || 'Paus')}</span>
+            <span class="sl-time">${escapeHtml(fmtDur(entry.breakAfter.seconds))}</span>
+          </div>`);
+      }
     }
 
     const header = [setlist.venue, setlist.date].filter(Boolean).join(' · ');
@@ -340,9 +416,15 @@
       try { next = await getSong(songs[idx + 1].songId); } catch (_) {}
     }
 
-    const nextHtml = songs[idx + 1]
-      ? `<div class="next-label">Next</div><div class="fit-wrap"><span class="fit next-title">${escapeHtml(next ? next.title : 'Okänd låt')}</span></div>`
-      : `<div class="next-label">Next</div><div class="fit-wrap"><span class="fit next-title" style="color:var(--text-dim)">End of Set</span></div>`;
+    const brk = songs[idx].breakAfter;
+    const nextTitle = songs[idx + 1]
+      ? escapeHtml(next ? next.title : 'Okänd låt')
+      : '<span style="color:var(--text-dim)">End of Set</span>';
+    const nextHtml = brk
+      ? `<div class="next-label">Next</div>
+         <div class="fit-wrap"><span class="fit next-title break-next">⏸ ${escapeHtml(brk.label || 'Paus')} · ${escapeHtml(fmtDur(brk.seconds))}</span></div>
+         <div class="then-line">Sedan: ${nextTitle}</div>`
+      : `<div class="next-label">Next</div><div class="fit-wrap"><span class="fit next-title">${nextTitle}</span></div>`;
 
     stage.innerHTML = `
       <div class="song-view">
@@ -363,16 +445,18 @@
       setConnected(true);
     } catch (_) {
       setConnected(false);
+      stopClock();
       stage.innerHTML = offlineHtml();
       return;
     }
     if (token !== renderToken) return;
 
+    stopClock();
     if (live.mode === 'end') { stage.innerHTML = endOfSetHtml(); fitAll(); return; }
-    if (!live.setlistId || live.mode === 'idle') { stage.innerHTML = idleHtml(); return; }
+    if (!live.setlistId || live.mode === 'idle') { stage.innerHTML = idleHtml(); startClock(); return; }
 
     let setlist;
-    try { setlist = await api('/api/setlists/' + live.setlistId); } catch (_) { stage.innerHTML = idleHtml(); return; }
+    try { setlist = await api('/api/setlists/' + live.setlistId); } catch (_) { stage.innerHTML = idleHtml(); startClock(); return; }
     if (token !== renderToken) return;
 
     if (live.mode === 'song') await renderSongView(stage, setlist, live);

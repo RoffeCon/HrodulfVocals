@@ -1,98 +1,35 @@
 [
   {
-    "id": "6ogut8LQrgSE",
-    "name": "Lottas Födelsedag",
-    "venue": "O'Leary's Nacka",
-    "date": "2026-06-13",
-    "notes": "Band: 4 Rock! Rolf gästartist på N.I.B",
-    "items": [
-      {
-        "kind": "song",
-        "songId": "DiZ554SiKcLi"
-      },
-      {
-        "kind": "song",
-        "songId": "EhbxmseReF-d"
-      },
-      {
-        "kind": "song",
-        "songId": "wX6HzLBbE-nT"
-      },
-      {
-        "kind": "song",
-        "songId": "qYW64r9oaxGX"
-      },
-      {
-        "kind": "song",
-        "songId": "GZO_HbqPArgz"
-      },
-      {
-        "kind": "song",
-        "songId": "2FrQvyBOQe_i"
-      },
-      {
-        "kind": "song",
-        "songId": "7wRti41gwrOw"
-      },
-      {
-        "kind": "song",
-        "songId": "hZVmTT91efkg"
-      },
-      {
-        "kind": "song",
-        "songId": "ApM-XAwZxF4G"
-      },
-      {
-        "kind": "song",
-        "songId": "mjvrDssWl-4C"
-      }
-    ],
-    "songIds": [
-      "DiZ554SiKcLi",
-      "EhbxmseReF-d",
-      "wX6HzLBbE-nT",
-      "qYW64r9oaxGX",
-      "GZO_HbqPArgz",
-      "2FrQvyBOQe_i",
-      "7wRti41gwrOw",
-      "hZVmTT91efkg",
-      "ApM-XAwZxF4G",
-      "mjvrDssWl-4C"
-    ],
-    "createdAt": "2026-07-18T13:08:45.184Z",
-    "updatedAt": "2026-07-18T20:48:58.661Z"
-  },
-  {
-    "id": "5JRG0IzkBodL",
-    "name": "Drummers and Bass audition",
-    "venue": "",
+    "id": "-gF8He4-re2B",
+    "name": "Testgig",
+    "venue": "Debaser",
     "date": "",
-    "notes": "De låtar vi ska använda för att testa trummis och bassist",
+    "notes": "",
     "items": [
       {
-        "kind": "song",
-        "songId": "7HceVaWaA7SG"
+        "kind": "group",
+        "label": "Akustiskt"
       },
       {
         "kind": "song",
-        "songId": "ahzSYomzFHif"
+        "songId": "ISp13Zri2Uk4"
+      },
+      {
+        "kind": "break",
+        "label": "Mellansnack",
+        "seconds": 420,
+        "showOnDisplay": true
       },
       {
         "kind": "song",
-        "songId": "8aOfZO4ROGGo"
-      },
-      {
-        "kind": "song",
-        "songId": "BEkulqJ6QxOQ"
+        "songId": "G2P1Nl1dO1z5"
       }
     ],
     "songIds": [
-      "7HceVaWaA7SG",
-      "ahzSYomzFHif",
-      "8aOfZO4ROGGo",
-      "BEkulqJ6QxOQ"
+      "ISp13Zri2Uk4",
+      "G2P1Nl1dO1z5"
     ],
-    "createdAt": "2026-08-20T16:57:41.770Z",
-    "updatedAt": "2026-08-20T17:25:37.981Z"
+    "createdAt": "2026-09-01T04:57:33.626Z",
+    "updatedAt": "2026-09-06T09:36:11.927Z"
   }
 ]

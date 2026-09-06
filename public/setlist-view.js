@@ -30,6 +30,9 @@
     for (const item of setlist.items || []) {
       if (item.kind === 'group') {
         html += `<div class="sl-group">${escapeHtml(item.label)}</div>`;
+      } else if (item.kind === 'break') {
+        const sec = Math.max(0, parseInt(item.seconds, 10) || 0);
+        html += `<div class="sl-group">⏸ ${escapeHtml(item.label || 'Paus')} - ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}</div>`;
       } else {
         html += `<div class="sl-song" data-song="${item.songId}">
           <div class="sl-song-title">…</div>
@@ -45,7 +48,7 @@
       const songId = row.dataset.song;
       try {
         const song = songCache[songId] || (songCache[songId] = await api('/api/songs/' + songId));
-        const metaBits = [song.key, song.tempo && song.tempo + ' bpm'].filter(Boolean);
+        const metaBits = [song.key, song.tempo && song.tempo + ' bpm', song.duration].filter(Boolean);
         row.querySelector('.sl-song-title').textContent = song.title;
         const meta = document.createElement('div');
         meta.className = 'sl-song-meta';
