@@ -1,0 +1,22 @@
+{
+  "name": "lyricsmaster",
+  "version": "1.13.0",
+  "description": "Personlig sångtextapp med lokal server – körs på telefonen via Termux, nås från valfri enhet på samma wifi.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "qrcode": "^1.5.4",
+    "ws": "^8.21.3"
+  },
+  "overrides": {
+    "body-parser": "^2.3.0",
+    "qs": "^6.16.0"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
